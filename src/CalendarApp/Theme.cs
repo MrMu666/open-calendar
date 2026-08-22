@@ -51,7 +51,6 @@ public static class Theme
     private static SolidColorBrush MakeBrush(string hex)
     {
         var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-        brush.Frozen = false;
         return brush;
     }
 

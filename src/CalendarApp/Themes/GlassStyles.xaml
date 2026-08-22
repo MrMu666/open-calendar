@@ -1,5 +1,85 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <!-- Placeholder: to be overwritten by the Views agent with full styles. -->
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:views="clr-namespace:CalendarApp.Views">
     <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+
+    <!-- ══ 玻璃面板按钮基础模板：透明底 + 圆角（CornerRadius 走附加属性） ══ -->
+    <Style x:Key="GlassButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Foreground" Value="#E6FFFFFF"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{Binding Path=(views:ButtonRoundness.CornerRadius),
+                                                   RelativeSource={RelativeSource TemplatedParent}}">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Margin="{TemplateBinding Padding}"
+                                          RecognizesAccessKey="True"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Bd" Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- segBtn：圆角分段按钮，前景钉住 #E6FFFFFF（悬停/按下不变色） -->
+    <Style x:Key="segBtn" TargetType="Button" BasedOn="{StaticResource GlassButton}">
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="#F0FFFFFF"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- navBtn：‹ › 月导航，前景 #D9FFFFFF -->
+    <Style x:Key="navBtn" TargetType="Button" BasedOn="{StaticResource GlassButton}">
+        <Setter Property="Foreground" Value="#D9FFFFFF"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="#F0FFFFFF"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- backBtn：↩ 回到今天，白色 -->
+    <Style x:Key="backBtn" TargetType="Button" BasedOn="{StaticResource GlassButton}">
+        <Setter Property="Foreground" Value="White"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="#F0FFFFFF"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- addItemBtn / monthJumpBtn / saveBtn：强调色按钮（DynamicResource 全局联动） -->
+    <Style x:Key="accentBtn" TargetType="Button" BasedOn="{StaticResource GlassButton}">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}"/>
+                <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource AccentPressedBrush}"/>
+                <Setter Property="Foreground" Value="White"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="addItemBtn" TargetType="Button" BasedOn="{StaticResource accentBtn}"/>
+    <Style x:Key="monthJumpBtn" TargetType="Button" BasedOn="{StaticResource accentBtn}"/>
+    <Style x:Key="saveBtn" TargetType="Button" BasedOn="{StaticResource accentBtn}"/>
 </ResourceDictionary>

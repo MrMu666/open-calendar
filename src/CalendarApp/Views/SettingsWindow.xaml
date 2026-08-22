@@ -1,0 +1,144 @@
+<Window x:Class="CalendarApp.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Icon="Assets/app.ico"
+        Title="日程数据文件"
+        Width="460" Height="525"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowActivated="True">
+
+    <Window.Resources>
+        <!-- 点击颜色预览块后弹出的调色板（预设色块，由代码填充 PaletteGrid） -->
+        <Style x:Key="PaletteSwatch" TargetType="Border">
+            <Setter Property="Width" Value="26"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="BorderBrush" Value="#33000000"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="22">
+            <TextBlock Text="存储文件夹"
+                       FontSize="15" FontWeight="SemiBold" />
+
+            <TextBlock Text="所有事项以 md 文件存放在所选文件夹的 items 子目录中。"
+                       FontSize="12" Opacity="0.7" TextWrapping="Wrap" Margin="0,4,0,8" />
+
+            <Border Padding="12,10" CornerRadius="8"
+                    Background="#14000000" BorderBrush="#33000000" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="当前文件夹" FontSize="11" Opacity="0.6" />
+                    <TextBlock Text="{Binding CurrentFile}"
+                               FontSize="12" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Border>
+
+            <Button Content="选择存储文件夹…" Click="OnOpenFolderClicked"
+                    HorizontalAlignment="Left" Margin="0,8,0,0" Padding="12,5"/>
+
+            <TextBlock Text="{Binding Status}" FontSize="12" Opacity="0.8" TextWrapping="Wrap" />
+
+            <Separator Margin="0,10"/>
+
+            <!-- 外观设置：颜色与透明度，保存进用户目录 settings.json -->
+            <TextBlock Text="外观设置" FontSize="15" FontWeight="SemiBold" />
+
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- 背景颜色 -->
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="背景颜色"
+                           VerticalAlignment="Center" FontSize="12" Margin="0,0,12,0"/>
+                <TextBox Grid.Row="0" Grid.Column="1"
+                         Text="{Binding BackgroundColor, UpdateSourceTrigger=PropertyChanged}"
+                         FontSize="12" VerticalContentAlignment="Center" Padding="6,4"/>
+                <!-- 点击预览块弹出调色板选色 -->
+                <Border x:Name="BgSwatch" Grid.Row="0" Grid.Column="2" Width="28" Height="28"
+                        CornerRadius="6" Margin="12,0,0,0"
+                        Background="{Binding PanelBackground}"
+                        BorderBrush="#33000000" BorderThickness="1"
+                        Cursor="Hand"
+                        ToolTip="点击选择颜色"
+                        Tag="background"
+                        MouseLeftButtonDown="OnColorPreviewPressed"/>
+
+                <!-- 不透明度 -->
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="不透明度"
+                           VerticalAlignment="Center" FontSize="12" Margin="0,0,12,0"/>
+                <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
+                    <Slider Minimum="0" Maximum="1" Width="160"
+                            Value="{Binding BackgroundOpacity}"
+                            VerticalAlignment="Center"/>
+                    <TextBlock Text="{Binding BackgroundOpacity, StringFormat={}{0:P0}}"
+                               FontSize="12" VerticalAlignment="Center" MinWidth="36"
+                               Margin="8,0,0,0"/>
+                </StackPanel>
+
+                <!-- 强调色：日历选中日 / 新增事项按钮 / 跳转按钮共用 -->
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="强调色"
+                           VerticalAlignment="Center" FontSize="12" Margin="0,8,0,0"/>
+                <TextBox Grid.Row="2" Grid.Column="1"
+                         Text="{Binding AccentColor, UpdateSourceTrigger=PropertyChanged}"
+                         FontSize="12" VerticalContentAlignment="Center" Padding="6,4"
+                         Margin="0,8,0,0"/>
+                <Border x:Name="AccentSwatch" Grid.Row="2" Grid.Column="2" Width="28" Height="28"
+                        CornerRadius="6" Margin="12,8,0,0"
+                        Background="{Binding AccentPreview}"
+                        BorderBrush="#33000000" BorderThickness="1"
+                        Cursor="Hand" Tag="accent"
+                        ToolTip="点击选择颜色"
+                        MouseLeftButtonDown="OnColorPreviewPressed"/>
+            </Grid>
+
+            <Separator Margin="0,10"/>
+
+            <!-- 启动设置 -->
+            <TextBlock Text="启动设置" FontSize="15" FontWeight="SemiBold" />
+
+            <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock Text="开机自动启动" FontSize="12" />
+                    <TextBlock Text="登录系统后自动运行日程桌面" FontSize="11" Opacity="0.6" />
+                </StackPanel>
+                <CheckBox Grid.Column="1" IsChecked="{Binding LaunchAtStartup}"
+                          VerticalAlignment="Center" />
+            </Grid>
+
+            <Separator Margin="0,10"/>
+
+            <StackPanel Orientation="Horizontal">
+                <Button Content="恢复显示主面板" Command="{Binding ShowMainPanelCommand}"
+                        Padding="14,5"/>
+                <Button Content="退出应用" Command="{Binding ExitCommand}"
+                        Background="#33442342" Padding="14,5" Margin="8,0,0,0"/>
+            </StackPanel>
+
+            <!-- 调色板 Popup：点击预览块时从代码触发 -->
+            <Popup x:Name="PalettePopup" PlacementTarget="{Binding ElementName=BgSwatch}"
+                   Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                <Border Padding="12" CornerRadius="8" Background="White"
+                        BorderBrush="#33000000" BorderThickness="1">
+                    <UniformGrid x:Name="PaletteGrid" Columns="6" HorizontalAlignment="Center" />
+                </Border>
+            </Popup>
+        </StackPanel>
+    </ScrollViewer>
+</Window>

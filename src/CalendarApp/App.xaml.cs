@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using CalendarApp.Models;
@@ -104,10 +105,10 @@ public partial class App : Application
 
         DesktopGlassBehavior.Attach(w);
         BlurBackdrop.EnableAcrylic(w);
-        if (System.Windows.Interop.WindowInteropHelper.GetHandle(w) == IntPtr.Zero)
+        if (new WindowInteropHelper(w).Handle == IntPtr.Zero)
         {
             w.SourceInitialized += (_, _) =>
-                BlurBackdrop.EnableRoundedCorners(new System.Windows.Interop.WindowInteropHelper(w).Handle);
+                BlurBackdrop.EnableRoundedCorners(new WindowInteropHelper(w).Handle);
         }
 
         w.LocationChanged += (_, _) => ScheduleGeometrySave(w);
@@ -169,10 +170,14 @@ public partial class App : Application
 
     private void CreateTrayIcon()
     {
-        var iconUri = new Uri("pack://application:,,,/Assets/app.ico");
+        var icon = new System.Windows.Media.Imaging.BitmapImage();
+        icon.BeginInit();
+        icon.UriSource = new Uri("pack://application:,,,/Assets/app.ico");
+        icon.EndInit();
+
         _tray = new TaskbarIcon
         {
-            IconSource = iconUri,
+            IconSource = icon,
             ToolTipText = "日程桌面",
         };
 

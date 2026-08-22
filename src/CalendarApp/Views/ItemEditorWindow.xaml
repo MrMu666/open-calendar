@@ -1,0 +1,221 @@
+<Window x:Class="CalendarApp.Views.ItemEditorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:CalendarApp.Views"
+        Title="新增事项"
+        Width="520" Height="420"
+        MinWidth="420" MinHeight="360"
+        WindowStartupLocation="Manual"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ShowActivated="True"
+        ResizeMode="CanResize"
+        Topmost="True">
+
+    <!-- 无边框浅色对话框：只有 Border 绘制实色，圆角外透明 -->
+    <Border CornerRadius="10"
+            Background="#F5F7FA"
+            BorderBrush="#CBD5E1" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="28" ShadowDepth="10" Direction="270"
+                              Opacity="0.35" Color="#000000"/>
+        </Border.Effect>
+        <DockPanel>
+
+            <!-- 顶栏：可拖动窗口 + 右上角 ❌ 关闭按钮 -->
+            <Border DockPanel.Dock="Top" Height="34" Padding="12,0,8,0"
+                    Background="#E9EEF5"
+                    CornerRadius="10,10,0,0"
+                    MouseLeftButtonDown="OnTitleBarPressed"
+                    Cursor="SizeAll">
+                <Grid>
+                    <TextBlock x:Name="TitleText" Text="编辑事项"
+                               FontSize="12" FontWeight="SemiBold" Foreground="#1A2333"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <Button Width="26" Height="26" Padding="0" HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Background="Transparent" BorderThickness="0"
+                            Style="{StaticResource GlassButton}"
+                            Cursor="Hand" Click="OnCloseClicked"
+                            ToolTip="关闭">
+                        <TextBlock Text="❌" FontSize="12" Foreground="#D32F2F"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- 底部：错误提示 + 保存 -->
+            <StackPanel DockPanel.Dock="Bottom" Margin="14,0,14,12">
+                <TextBlock x:Name="EditorError" Text="日期不合法，请检查年 / 月 / 日（截止留空表示长期事项）"
+                           Foreground="#D32F2F" FontSize="11" TextWrapping="Wrap"
+                           Visibility="Collapsed" Margin="0,0,0,8"/>
+                <Button Content="保存" Style="{StaticResource saveBtn}"
+                        Padding="22,7" FontSize="12"
+                        views:ButtonRoundness.CornerRadius="6"
+                        HorizontalAlignment="Right"
+                        BorderThickness="0" Click="OnSaveClicked" />
+            </StackPanel>
+
+            <!-- 中间表单 -->
+            <Grid Margin="14,10,14,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 标题 -->
+                <TextBox x:Name="TitleBox" Grid.Row="0" FontSize="12"
+                         VerticalContentAlignment="Center" Padding="6,4"/>
+
+                <!-- 开始日期：直接填写，紧凑排布 -->
+                <Grid Grid.Row="1" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="开始" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBox x:Name="StartYearBox" Grid.Column="1" Width="52" MaxLength="4"
+                             TextChanged="OnDateBoxChanged"
+                             Background="#FFFFFF" Foreground="#1A2333"
+                             BorderBrush="#CBD5E1" FontSize="12"
+                             Padding="2,4" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="年" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center" Margin="2,0"/>
+                    <TextBox x:Name="StartMonthBox" Grid.Column="3" Width="32" MaxLength="2"
+                             TextChanged="OnDateBoxChanged"
+                             Background="#FFFFFF" Foreground="#1A2333"
+                             BorderBrush="#CBD5E1" FontSize="12"
+                             Padding="2,4" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="4" Text="月" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center" Margin="2,0"/>
+                    <TextBox x:Name="StartDayBox" Grid.Column="5" Width="32" MaxLength="2"
+                             TextChanged="OnDateBoxChanged"
+                             Background="#FFFFFF" Foreground="#1A2333"
+                             BorderBrush="#CBD5E1" FontSize="12"
+                             Padding="2,4" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="6" Text="日" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center" Margin="2,0"/>
+                    <TextBox x:Name="StartTimeBox" Grid.Column="7" Width="48" MaxLength="5"
+                             TextChanged="OnDateBoxChanged"
+                             Background="#FFFFFF" Foreground="#1A2333"
+                             BorderBrush="#CBD5E1" FontSize="12"
+                             Padding="2,4" TextAlignment="Center"
+                             VerticalAlignment="Center" Margin="6,0,0,0"/>
+                    <TextBlock Grid.Column="8" Text="时:分" FontSize="10" Foreground="#94A3B8"
+                               VerticalAlignment="Center" Margin="2,0"/>
+                </Grid>
+
+                <!-- 截止日期（留空 = 长期事项） -->
+                <Grid Grid.Row="2" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="截止" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBox x:Name="EndYearBox" Grid.Column="1" Width="52" MaxLength="4"
+                             TextChanged="OnDateBoxChanged"
+                             Background="#FFFFFF" Foreground="#1A2333"
+                             BorderBrush="#CBD5E1" FontSize="12"
+                             Padding="2,4" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="年" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center" Margin="2,0"/>
+                    <TextBox x:Name="EndMonthBox" Grid.Column="3" Width="32" MaxLength="2"
+                             TextChanged="OnDateBoxChanged"
+                             Background="#FFFFFF" Foreground="#1A2333"
+                             BorderBrush="#CBD5E1" FontSize="12"
+                             Padding="2,4" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="4" Text="月" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center" Margin="2,0"/>
+                    <TextBox x:Name="EndDayBox" Grid.Column="5" Width="32" MaxLength="2"
+                             TextChanged="OnDateBoxChanged"
+                             Background="#FFFFFF" Foreground="#1A2333"
+                             BorderBrush="#CBD5E1" FontSize="12"
+                             Padding="2,4" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="6" Text="日" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center" Margin="2,0"/>
+                    <TextBox x:Name="EndTimeBox" Grid.Column="7" Width="48" MaxLength="5"
+                             TextChanged="OnDateBoxChanged"
+                             Background="#FFFFFF" Foreground="#1A2333"
+                             BorderBrush="#CBD5E1" FontSize="12"
+                             Padding="2,4" TextAlignment="Center"
+                             VerticalAlignment="Center" Margin="6,0,0,0"/>
+                    <TextBlock Grid.Column="8" Text="时:分" FontSize="10" Foreground="#94A3B8"
+                               VerticalAlignment="Center" Margin="2,0"/>
+                </Grid>
+
+                <!-- 标签 + 优先级 -->
+                <Grid Grid.Row="3" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="标签" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center"/>
+                    <ComboBox x:Name="TagBox" Grid.Column="1" Width="92" FontSize="12"
+                              VerticalContentAlignment="Center" SelectedIndex="0" Margin="6,0,0,0">
+                        <ComboBoxItem Content="工作" />
+                        <ComboBoxItem Content="生活" />
+                        <ComboBoxItem Content="学习" />
+                        <ComboBoxItem Content="健康" />
+                        <ComboBoxItem Content="财务" />
+                    </ComboBox>
+                    <TextBlock Grid.Column="2" Text="优先级" FontSize="12" Foreground="#64748B"
+                               VerticalAlignment="Center" Margin="10,0,0,0"/>
+                    <ComboBox x:Name="PriorityBox" Grid.Column="3" Width="84" FontSize="12"
+                              VerticalContentAlignment="Center" SelectedIndex="2" Margin="6,0,0,0">
+                        <ComboBoxItem Content="紧急" />
+                        <ComboBoxItem Content="优先" />
+                        <ComboBoxItem Content="一般" />
+                        <ComboBoxItem Content="长期" />
+                    </ComboBox>
+                    <TextBlock Grid.Column="4" Text="P1-P4 仅用于文件名，不在此显示" FontSize="10"
+                               Foreground="#94A3B8" VerticalAlignment="Center" Margin="8,0,0,0"
+                               TextTrimming="CharacterEllipsis"/>
+                </Grid>
+
+                <!-- 内容区：左 Markdown 编辑，右预览 -->
+                <Grid Grid.Row="4" Margin="0,8,0,0" MinHeight="120">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <DockPanel Grid.Column="0">
+                        <TextBlock DockPanel.Dock="Top" Text="Markdown 内容" FontSize="11"
+                                   Foreground="#64748B" Margin="0,0,0,4" />
+                        <TextBox x:Name="ContentBox" AcceptsReturn="True" TextWrapping="Wrap"
+                                 FontFamily="Consolas, Microsoft YaHei" FontSize="12"
+                                 TextChanged="OnContentChanged"
+                                 Padding="8" Background="#FFFFFF" Foreground="#1A2333"/>
+                    </DockPanel>
+                    <GridSplitter Grid.Column="1" Width="3" Background="#CBD5E1"
+                                  HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                                  Margin="8,0"/>
+                    <DockPanel Grid.Column="2">
+                        <TextBlock DockPanel.Dock="Top" Text="预览" FontSize="11"
+                                   Foreground="#64748B" Margin="0,0,0,4" />
+                        <ScrollViewer x:Name="PreviewScroller" VerticalScrollBarVisibility="Auto"
+                                      Background="#FFFFFF" Padding="8" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="PreviewPanel" />
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
+
+            </Grid>
+
+        </DockPanel>
+    </Border>
+</Window>
