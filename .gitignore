@@ -1,0 +1,24 @@
+# Build artifacts
+bin/
+obj/
+out/
+publish/
+artifacts/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Test results
+TestResults/
+*.trx
+
+# Opencode local state
+.omo/

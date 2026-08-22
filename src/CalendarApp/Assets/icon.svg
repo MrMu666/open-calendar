@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- 科技化风格日历标志：深色底板不变 + 电路网格/节点 + 纯白日历卡（与深色背景高对比） -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A101F"/>
+      <stop offset="1" stop-color="#182338"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="0.55" stop-color="#2E86F6"/>
+      <stop offset="1" stop-color="#818CF8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 底板（不变） -->
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#bg)" stroke="#24334F" stroke-width="6"/>
+
+  <!-- 电路网格与节点（不变） -->
+  <g stroke="#1B2A45" stroke-width="3" opacity="0.85">
+    <line x1="32"  y1="48"  x2="32"  y2="448"/>
+    <line x1="112" y1="48"  x2="112" y2="448"/>
+    <line x1="192" y1="48"  x2="192" y2="448"/>
+    <line x1="272" y1="48"  x2="272" y2="448"/>
+    <line x1="352" y1="48"  x2="352" y2="448"/>
+    <line x1="432" y1="48"  x2="432" y2="448"/>
+    <line x1="32"  y1="48"  x2="480" y2="48"/>
+    <line x1="32"  y1="128" x2="480" y2="128"/>
+    <line x1="32"  y1="208" x2="480" y2="208"/>
+    <line x1="32"  y1="288" x2="480" y2="288"/>
+    <line x1="32"  y1="368" x2="480" y2="368"/>
+    <line x1="32"  y1="448" x2="480" y2="448"/>
+  </g>
+  <g fill="#4C8DFF" opacity="0.9">
+    <circle cx="432" cy="128" r="6"/>
+    <circle cx="432" cy="288" r="6"/>
+    <circle cx="32"  cy="288" r="6"/>
+    <circle cx="32"  cy="208" r="6"/>
+    <circle cx="112" cy="448" r="6"/>
+    <circle cx="272" cy="448" r="6"/>
+  </g>
+
+  <!-- 左右电路走线（不变） -->
+  <path d="M 32 448 L 104 448 L 104 388" fill="none" stroke="url(#accent)" stroke-width="7"
+        stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <circle cx="104" cy="388" r="9" fill="url(#accent)"/>
+  <path d="M 480 132 L 420 132 L 420 176" fill="none" stroke="url(#accent)" stroke-width="7"
+        stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+  <circle cx="420" cy="176" r="9" fill="url(#accent)"/>
+
+  <!-- 日历卡（纯白）：白色光晕 + 白色卡身 -->
+  <rect x="112" y="120" width="288" height="288" rx="44" fill="none" stroke="#FFFFFF" stroke-width="12" opacity="0.18"/>
+  <rect x="112" y="120" width="288" height="288" rx="44" fill="#FFFFFF" stroke="#E5EBF5" stroke-width="6"/>
+
+  <!-- 装订环（白色描边，孔露出背景） -->
+  <rect x="176" y="86" width="40" height="40" rx="16" fill="#0E1A30" stroke="#FFFFFF" stroke-width="5"/>
+  <rect x="296" y="86" width="40" height="40" rx="16" fill="#0E1A30" stroke="#FFFFFF" stroke-width="5"/>
+
+  <!-- 顶部信息条（白色，内部用蓝点缀） -->
+  <rect x="126" y="134" width="260" height="44" rx="22" fill="#F4F8FF" stroke="#D9E2F0" stroke-width="3"/>
+  <rect x="148" y="146" width="46" height="10" rx="5" fill="url(#accent)" opacity="0.95"/>
+  <rect x="148" y="164" width="96" height="10" rx="5" fill="#C3D2E8"/>
+  <circle cx="352" cy="156" r="7" fill="#22D3EE"/>
+  <circle cx="352" cy="156" r="13" fill="none" stroke="#22D3EE" stroke-width="3" opacity="0.35"/>
+
+  <!-- 日期网格（白色格子 + 浅灰描边） -->
+  <g fill="#FFFFFF" stroke="#E5EBF5" stroke-width="4">
+    <rect x="120" y="196" width="80" height="58" rx="14"/>
+    <rect x="216" y="196" width="80" height="58" rx="14"/>
+    <rect x="120" y="266" width="80" height="58" rx="14"/>
+    <rect x="216" y="266" width="80" height="58" rx="14"/>
+    <rect x="120" y="336" width="80" height="58" rx="14"/>
+    <rect x="216" y="336" width="80" height="58" rx="14"/>
+  </g>
+  <!-- 右侧强调格（极浅蓝，保持白系层次） -->
+  <g fill="#F2F7FE" stroke="#C9D8F0" stroke-width="4">
+    <rect x="312" y="196" width="80" height="58" rx="14"/>
+    <rect x="312" y="266" width="80" height="58" rx="14"/>
+  </g>
+
+  <!-- “今日”格：白色 + 蓝色细描边突出 + 深蓝脉冲线（白底高对比） -->
+  <rect x="312" y="336" width="80" height="58" rx="14" fill="none" stroke="#FFFFFF" stroke-width="14" opacity="0.3"/>
+  <rect x="312" y="336" width="80" height="58" rx="14" fill="#FFFFFF" stroke="#2E86F6" stroke-width="4"/>
+  <path d="M 322 370 L 342 370 L 350 352 L 360 386 L 368 368 L 377 370 L 386 370"
+        fill="none" stroke="#1E3A8A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

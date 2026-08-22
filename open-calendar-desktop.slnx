@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/CalendarApp/CalendarApp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CalendarApp.Tests/CalendarApp.Tests.csproj" />
+  </Folder>
+</Solution>
