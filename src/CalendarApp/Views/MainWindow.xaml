@@ -3,20 +3,20 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:CalendarApp.ViewModels"
         xmlns:views="clr-namespace:CalendarApp.Views"
-        Icon="Assets/app.ico"
+        Icon="pack://application:,,,/Assets/app.ico"
         Title="日程桌面"
         Width="340" Height="500"
         MinWidth="240" MinHeight="280"
         WindowStartupLocation="Manual"
         WindowStyle="None"
-        AllowsTransparency="False"
+        AllowsTransparency="True"
         Background="Transparent"
         ResizeMode="CanResize"
         ShowInTaskbar="False"
         ShowActivated="False">
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0" ResizeBorderThickness="8"
-                      GlassFrameThickness="-1" UseAeroCaptionButtons="False"
+                      GlassFrameThickness="0" UseAeroCaptionButtons="False"
                       CornerRadius="0"/>
     </WindowChrome.WindowChrome>
 
@@ -121,13 +121,24 @@
     </Window.Resources>
 
 
-    <!-- 玻璃面板主体：DWM 丙烯酸模糊由系统绘制，面板背景 = 用户颜色×透明度（PanelBackground）。
-         省略源文件的 Margin=10 透明外边距——非分层窗口无法保留透明空隙（见 CONTRACTS.md 偏差说明）。 -->
-    <Border CornerRadius="16"
-            Background="{Binding PanelBackground}"
+    <!-- 玻璃面板主体：三层叠放——模糊壁纸快照（WallpaperBackdrop）→ 用户色调
+         （PanelBackground 颜色×透明度）→ 内容。全部为 WPF 自身内容绘制，
+         不依赖 DWM 模糊合成层（RDP/软件渲染下同样正常）。 -->
+    <Border Margin="10" CornerRadius="16"
             BorderBrush="#66FFFFFF"
             BorderThickness="1">
-        <DockPanel>
+        <Grid>
+            <!-- 层1：模糊壁纸快照 -->
+            <Border CornerRadius="16" ClipToBounds="True">
+                <Border.Background>
+                    <ImageBrush x:Name="WallpaperBrush" Stretch="UniformToFill" />
+                </Border.Background>
+            </Border>
+            <!-- 层2：用户色调（颜色×不透明度，实时绑定 PanelBackground） -->
+            <Border CornerRadius="16"
+                    Background="{Binding PanelBackground}" />
+            <!-- 层3：内容 -->
+            <DockPanel>
 
             <!-- Title bar: date on the left (draggable), calendar/tasks switcher dead-center, gear on the right -->
             <Border DockPanel.Dock="Top" Padding="18,14,12,6"
@@ -216,7 +227,8 @@
                 <!-- 玻璃风格月历 -->
                 <ScrollViewer Visibility="{Binding IsCalendarView,
                                     Converter={StaticResource BoolToVis}}"
-                              Margin="18,10,18,10">
+                              Margin="18,10,18,10"
+                              VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <!-- 月份导航 -->
                         <Grid>
@@ -309,7 +321,8 @@
                 <!-- 未到期事项列表 -->
                 <ScrollViewer Visibility="{Binding IsCalendarView,
                                     Converter={StaticResource InvBoolToVis}}"
-                              Margin="18,10,18,10">
+                              Margin="18,10,18,10"
+                              VerticalScrollBarVisibility="Auto">
                     <StackPanel>
                         <DockPanel>
                             <TextBlock Text="未到期事项" FontSize="13" Foreground="#CCFFFFFF"
@@ -335,5 +348,6 @@
             </Grid>
 
         </DockPanel>
+        </Grid>
     </Border>
 </Window>

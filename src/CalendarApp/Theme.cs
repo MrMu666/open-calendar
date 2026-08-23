@@ -4,24 +4,27 @@ using System.Windows.Media;
 namespace CalendarApp;
 
 /// <summary>
-/// Shared accent brushes used by the calendar selected day, the 新增事项
-/// button and the date-jump button. All three places reference the same
-/// brush instances, and <see cref="ApplyAccent"/> mutates their colors in
-/// place, so a settings change repaints every consumer live without
-/// rebuilding windows. Hover/pressed are auto-derived darker shades.
+/// Shared accent brush factory used by the calendar selected day, the 新增事项
+/// button and the date-jump button. All consumers reference the brushes via
+/// application resources; <see cref="ApplyAccent"/> REPLACES the registered
+/// brushes with freshly-created instances (WPF freezes Freezables stored in
+/// resource dictionaries, so in-place mutation is impossible — replacement
+/// keeps every DynamicResource reference alive automatically).
 /// </summary>
 public static class Theme
 {
+    private static readonly Brush _fallback = CreateBrush("#4CAF50");
+
     /// <summary>Accent color — default #4CAF50, same as the calendar selected day.</summary>
-    public static SolidColorBrush Accent { get; } = MakeBrush("#4CAF50");
+    public static Brush Accent { get; private set; } = _fallback;
 
     /// <summary>Slightly darker shade used for button hover.</summary>
-    public static SolidColorBrush AccentHover { get; } = MakeBrush("#43A047");
+    public static Brush AccentHover { get; private set; } = CreateBrush("#43A047");
 
     /// <summary>Darker shade used for button pressed state.</summary>
-    public static SolidColorBrush AccentPressed { get; } = MakeBrush("#3E8E41");
+    public static Brush AccentPressed { get; private set; } = CreateBrush("#3E8E41");
 
-    /// <summary>Re-applies the accent color (and derived hover/pressed shades) from a hex string.</summary>
+    /// <summary>Re-applies the accent color by replacing all three brushes.</summary>
     public static void ApplyAccent(string hex)
     {
         if (!TryParseHexColor(hex, out var color))
@@ -29,9 +32,21 @@ public static class Theme
             return;
         }
 
-        Accent.Color = color;
-        AccentHover.Color = Scale(color, 0.88);
-        AccentPressed.Color = Scale(color, 0.78);
+        var accent = CreateBrush(color);
+        var hover = CreateBrush(Scale(color, 0.88));
+        var pressed = CreateBrush(Scale(color, 0.78));
+
+        var app = Application.Current;
+        if (app is not null)
+        {
+            app.Resources["AccentBrush"] = accent;
+            app.Resources["AccentHoverBrush"] = hover;
+            app.Resources["AccentPressedBrush"] = pressed;
+        }
+
+        Accent = accent;
+        AccentHover = hover;
+        AccentPressed = pressed;
     }
 
     /// <summary>Puts the shared accent brushes into application resources so XAML can reference them.</summary>
@@ -48,11 +63,10 @@ public static class Theme
         app.Resources["AccentPressedBrush"] = AccentPressed;
     }
 
-    private static SolidColorBrush MakeBrush(string hex)
-    {
-        var brush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-        return brush;
-    }
+    private static Brush CreateBrush(string hex) =>
+        CreateBrush((Color)ColorConverter.ConvertFromString(hex));
+
+    private static Brush CreateBrush(Color color) => new SolidColorBrush(color);
 
     private static bool TryParseHexColor(string hex, out Color color)
     {

@@ -104,12 +104,11 @@ public partial class App : Application
             ShowItemEditor(item.Event);
 
         DesktopGlassBehavior.Attach(w);
-        BlurBackdrop.EnableAcrylic(w);
-        if (new WindowInteropHelper(w).Handle == IntPtr.Zero)
-        {
-            w.SourceInitialized += (_, _) =>
-                BlurBackdrop.EnableRoundedCorners(new WindowInteropHelper(w).Handle);
-        }
+        // NOTE: no DwmSetWindowAttribute/SetWindowCompositionAttribute here —
+        // DWM blur compositing renders as an opaque black rectangle over RDP.
+        // The panel's blurred backdrop is wallpaper-snapshot based (see
+        // WallpaperBackdrop + MainWindow.RefreshWallpaper), which is safe on
+        // every compositor.
 
         w.LocationChanged += (_, _) => ScheduleGeometrySave(w);
         w.SizeChanged += (_, _) => ScheduleGeometrySave(w);

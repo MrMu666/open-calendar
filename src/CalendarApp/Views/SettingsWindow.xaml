@@ -1,7 +1,7 @@
 <Window x:Class="CalendarApp.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Icon="Assets/app.ico"
+        Icon="pack://application:,,,/Assets/app.ico"
         Title="日程数据文件"
         Width="460" Height="525"
         WindowStartupLocation="CenterOwner"

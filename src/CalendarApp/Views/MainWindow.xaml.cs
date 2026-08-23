@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using CalendarApp.Platform;
 using CalendarApp.ViewModels;
+using Microsoft.Win32;
 
 namespace CalendarApp.Views;
 
@@ -10,16 +12,68 @@ public partial class MainWindow : Window
 {
     private DateJumpWindow? _dateJumpWindow;
     private bool _openingDateJumpWindow;
+    private DispatcherTimer? _wallpaperPoll;
+    private string _lastWallpaperPath = string.Empty;
 
     public MainWindow()
     {
         InitializeComponent();
         // Capture every click in the panel, including clicks handled by child
         // buttons, so Show Desktop placement survives post-dialog interaction.
-        AddHandler(
-            Mouse.PreviewMouseDownEvent,
-            OnMainWindowPointerPressedForDesktopLayer,
-            handledEventsToo: true);
+        PreviewMouseDown += OnMainWindowPointerPressedForDesktopLayer;
+
+        Loaded += OnLoaded;
+        Closed += OnClosed;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        RefreshWallpaper();
+        // Fences-style wallpaper sampling: refresh the blurred backdrop when the
+        // user changes the desktop wallpaper.
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+
+        // Wallpaper slideshow changes do NOT raise UserPreferenceChanged in all
+        // cases; poll the path at a low rate and rebuild only on change.
+        _wallpaperPoll = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(10),
+        };
+        _wallpaperPoll.Tick += (_, _) => PollWallpaper();
+        _wallpaperPoll.Start();
+    }
+
+    private void OnClosed(object? sender, EventArgs e)
+    {
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        _wallpaperPoll?.Stop();
+    }
+
+    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        Dispatcher.BeginInvoke(RefreshWallpaper);
+    }
+
+    private void PollWallpaper()
+    {
+        var path = WallpaperBackdrop.GetWallpaperPath();
+        if (!string.Equals(path, _lastWallpaperPath, StringComparison.OrdinalIgnoreCase))
+        {
+            RefreshWallpaper();
+        }
+    }
+
+    private void RefreshWallpaper()
+    {
+        var path = WallpaperBackdrop.GetWallpaperPath();
+        if (string.Equals(path, _lastWallpaperPath, StringComparison.OrdinalIgnoreCase)
+            && WallpaperBrush.ImageSource is not null)
+        {
+            return;
+        }
+
+        _lastWallpaperPath = path;
+        WallpaperBrush.ImageSource = WallpaperBackdrop.CreateBlurredWallpaperBrush().ImageSource;
     }
 
     /// <summary>Clicking a calendar day cell selects it and shows that day's events.</summary>
@@ -106,21 +160,17 @@ public partial class MainWindow : Window
         _dateJumpWindow = dialog;
         DesktopGlassBehavior.NotifyTransientWindow(this, true);
         _openingDateJumpWindow = true;
-        AddHandler(Mouse.PreviewMouseDownEvent,
-            OnMainWindowPointerPressedWhileDateDialogOpen,
-            handledEventsToo: true);
+        PreviewMouseDown += OnMainWindowPointerPressedWhileDateDialogOpen;
         dialog.Closed += (_, _) =>
         {
             DesktopGlassBehavior.NotifyTransientWindow(this, false);
-            RemoveHandler(Mouse.PreviewMouseDownEvent,
-                OnMainWindowPointerPressedWhileDateDialogOpen);
+            PreviewMouseDown -= OnMainWindowPointerPressedWhileDateDialogOpen;
             _openingDateJumpWindow = false;
             if (ReferenceEquals(_dateJumpWindow, dialog))
             {
                 _dateJumpWindow = null;
             }
         };
-
         // Deliberately do not assign the main window as Owner. The independent
         // Topmost window stays above the panel without controlling its visibility.
         dialog.Show();
