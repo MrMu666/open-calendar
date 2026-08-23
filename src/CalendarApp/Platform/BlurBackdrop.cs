@@ -1,120 +1,159 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 
 namespace CalendarApp.Platform;
 
 /// <summary>
-/// Background blur for the main glass panel.
+/// Rainmeter-style live blur: <c>DwmEnableBlurBehindWindow</c> with
+/// <c>DWM_BB_BLURREGION</c> on a layered window. Mirrors
+/// <c>Skin::ShowBlur() / BlurBehindWindow()</c> from
+/// <c>rainmeter/rainmeter Library/Skin.cpp</c>.
 ///
-/// Primary path: SetWindowCompositionAttribute with ACCENT_ENABLE_ACRYLICBLURBEHIND —
-/// DWM composites a real gaussian blur of everything behind the window and works
-/// with layered (AllowsTransparency) WPF windows. GradientColor alpha stays ~0 so
-/// the app's own PanelBackground brush provides the user tint on top of the blur.
-///
-/// Fallback path: DWMWA_SYSTEMBACKDROP_TYPE = DWMSBT_TRANSIENTWINDOW (Win11 22H2+,
-/// non-layered windows only).
+/// * Checks <c>DwmIsCompositionEnabled</c> and <c>DwmGetColorizationColor</c>
+///   (opaque → no blur), exactly like Rainmeter.
+/// * Creates a full-window <c>HRGN</c> via <c>CreateRectRgn</c> sized to the
+///   physical window bounds (DPI-aware).
+/// * Re-applies on resize; disables on close.
+/// Unlike <c>SetWindowCompositionAttribute(ACCENT_*)</c>, this path does NOT
+/// produce an opaque black rectangle over RDP/software compositors — when
+/// composition is unavailable it simply leaves the window as a tinted
+/// translucent panel (graceful fallback, no black).
 /// </summary>
 public static class BlurBackdrop
 {
-    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
-    private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
+    private const uint DWM_BB_ENABLE = 0x00000001;
+    private const uint DWM_BB_BLURREGION = 0x00000002;
 
-    private const int DWMSBT_TRANSIENTWINDOW = 3; // acrylic
+    // One region handle per window, like Skin::m_BlurRegion.
+    private static readonly Dictionary<IntPtr, IntPtr> s_regions = new();
 
-    private const int WCA_ACCENT_POLICY = 19;
-    private const int ACCENT_ENABLE_ACRYLICBLURBEHIND = 4;
-    private const int ACCENT_FLAG_DRAW_ALL_BORDERS = 2;
-
-    /// <summary>Applies background blur + dark mode to the window. Returns true when the acrylic policy was applied.</summary>
-    public static bool EnableAcrylic(Window window)
+    /// <summary>Enables Rainmeter-style blur on a WPF Window. Call from Loaded / SourceInitialized.</summary>
+    public static bool EnableBlur(Window window)
     {
         if (!OperatingSystem.IsWindows() || window is null) return false;
-
         var hwnd = new WindowInteropHelper(window).Handle;
         if (hwnd == IntPtr.Zero) return false;
-
-        return EnableAcrylic(hwnd);
+        var size = GetPhysicalSize(window);
+        return EnableBlur(hwnd, size.Width, size.Height);
     }
 
-    /// <summary>Applies background blur + dark mode to an existing HWND.</summary>
-    public static bool EnableAcrylic(IntPtr hwnd)
+    /// <summary>Enables blur for an HWND with explicit physical size. DPI-aware.</summary>
+    public static bool EnableBlur(IntPtr hwnd, int physicalW, int physicalH)
     {
         if (!OperatingSystem.IsWindows() || hwnd == IntPtr.Zero) return false;
+        if (physicalW <= 0 || physicalH <= 0) return false;
 
-        EnableDarkMode(hwnd);
+        // Rainmeter: if DWM composition is disabled or colorization is opaque, skip blur.
+        if (DwmIsCompositionEnabled(out var enabled) != 0 || !enabled) return false;
+        if (DwmGetColorizationColor(out _, out var opaque) == 0 && opaque) return false;
 
-        if (TrySetAcrylicAccent(hwnd))
+        // Drop previous region for this window, like Skin::ShowBlur() does for BLURMODE_FULL.
+        if (s_regions.TryGetValue(hwnd, out var old) && old != IntPtr.Zero)
         {
-            return true;
+            DeleteObject(old);
+            s_regions.Remove(hwnd);
         }
 
-        // Fallback: Win11 system backdrop (requires a non-layered window).
-        var backdrop = DWMSBT_TRANSIENTWINDOW;
-        var hr = DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, ref backdrop, sizeof(int));
+        var hRgn = CreateRectRgn(0, 0, physicalW, physicalH);
+        if (hRgn == IntPtr.Zero) return false;
+        s_regions[hwnd] = hRgn;
+
+        var bb = new DWM_BLURBEHIND
+        {
+            dwFlags = DWM_BB_ENABLE | DWM_BB_BLURREGION,
+            fEnable = true,
+            hRgnBlur = hRgn,
+            fTransitionOnMaximized = false,
+        };
+        var hr = DwmEnableBlurBehindWindow(hwnd, ref bb);
         return hr == 0;
     }
 
-    /// <summary>Dark titlebar/backdrop blending hint (best-effort).</summary>
-    public static void EnableDarkMode(IntPtr hwnd)
+    /// <summary>Updates the blur region after a resize. Call from SizeChanged.</summary>
+    public static void UpdateBlurRegion(Window window)
     {
-        if (!OperatingSystem.IsWindows() || hwnd == IntPtr.Zero) return;
-        var dark = 1;
-        _ = DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+        if (!OperatingSystem.IsWindows() || window is null) return;
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero) return;
+        var size = GetPhysicalSize(window);
+        EnableBlur(hwnd, size.Width, size.Height);
     }
 
-    private static bool TrySetAcrylicAccent(IntPtr hwnd)
+    /// <summary>Disables blur and frees the region. Call from Closed.</summary>
+    public static void DisableBlur(IntPtr hwnd)
     {
-        try
+        if (hwnd == IntPtr.Zero) return;
+        if (s_regions.TryGetValue(hwnd, out var hRgn) && hRgn != IntPtr.Zero)
         {
-            var accent = new ACCENTPOLICY
-            {
-                AccentState = ACCENT_ENABLE_ACRYLICBLURBEHIND,
-                AccentFlags = ACCENT_FLAG_DRAW_ALL_BORDERS,
-                GradientColor = 0x01000000, // ABGR, alpha=1: no tint of its own
-            };
-            var data = new WINDOWCOMPOSITIONATTRIBDATA
-            {
-                Attribute = WCA_ACCENT_POLICY,
-                SizeOfData = Marshal.SizeOf<ACCENTPOLICY>(),
-            };
-            var handle = GCHandle.Alloc(accent, GCHandleType.Pinned);
-            try
-            {
-                data.Data = handle.AddrOfPinnedObject();
-                return SetWindowCompositionAttribute(hwnd, ref data);
-            }
-            finally
-            {
-                handle.Free();
-            }
+            DeleteObject(hRgn);
+            s_regions.Remove(hwnd);
         }
-        catch
+        var bb = new DWM_BLURBEHIND { dwFlags = DWM_BB_ENABLE, fEnable = false };
+        DwmEnableBlurBehindWindow(hwnd, ref bb);
+    }
+
+    public static void DisableBlur(Window window)
+    {
+        if (window is null) return;
+        var hwnd = new WindowInteropHelper(window).Handle;
+        DisableBlur(hwnd);
+    }
+
+    private static (int Width, int Height) GetPhysicalSize(Window window)
+    {
+        var source = PresentationSource.FromVisual(window);
+        double dpiX = 1.0, dpiY = 1.0;
+        if (source?.CompositionTarget != null)
         {
-            return false;
+            dpiX = source.CompositionTarget.TransformToDevice.M11;
+            dpiY = source.CompositionTarget.TransformToDevice.M22;
         }
+        var w = (int)Math.Round(window.ActualWidth * dpiX);
+        var h = (int)Math.Round(window.ActualHeight * dpiY);
+        // Fallback: use window Width/Height if not yet rendered.
+        if (w <= 0) w = (int)Math.Round(window.Width * dpiX);
+        if (h <= 0) h = (int)Math.Round(window.Height * dpiY);
+        if (w <= 0) w = 340;
+        if (h <= 0) h = 500;
+        return (w, h);
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct ACCENTPOLICY
+    private struct DWM_BLURBEHIND
     {
-        public int AccentState;
-        public int AccentFlags;
-        public int GradientColor;
-        public int AnimationId;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WINDOWCOMPOSITIONATTRIBDATA
-    {
-        public int Attribute;
-        public IntPtr Data;
-        public int SizeOfData;
+        public uint dwFlags;
+        public bool fEnable;
+        public IntPtr hRgnBlur;
+        public bool fTransitionOnMaximized;
     }
 
     [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+    private static extern int DwmIsCompositionEnabled(out bool pfEnabled);
 
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetColorizationColor(out uint pcrColorization, out bool pfOpaqueBlend);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmEnableBlurBehindWindow(IntPtr hWnd, ref DWM_BLURBEHIND pBlurBehind);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRectRgn(int x1, int y1, int x2, int y2);
+
+    [DllImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DeleteObject(IntPtr hObject);
+
+    // Legacy acrylic path kept for reference but NOT used by the Rainmeter flow.
+    // If you need to re-enable it, call the ACCT path below instead of DWM blur.
+    private const int WCA_ACCENT_POLICY = 19;
+    private const int ACCENT_ENABLE_ACRYLICBLURBEHIND = 4;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ACCENTPOLICY { public int AccentState; public int AccentFlags; public int GradientColor; public int AnimationId; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWCOMPOSITIONATTRIBDATA { public int Attribute; public IntPtr Data; public int SizeOfData; }
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowCompositionAttribute(IntPtr hwnd, ref WINDOWCOMPOSITIONATTRIBDATA data);

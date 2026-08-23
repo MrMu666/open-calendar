@@ -1,10 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Threading;
 using CalendarApp.Platform;
 using CalendarApp.ViewModels;
-using Microsoft.Win32;
 
 namespace CalendarApp.Views;
 
@@ -12,71 +10,33 @@ public partial class MainWindow : Window
 {
     private DateJumpWindow? _dateJumpWindow;
     private bool _openingDateJumpWindow;
-    private DispatcherTimer? _wallpaperPoll;
-    private string _lastWallpaperPath = string.Empty;
 
     public MainWindow()
     {
         InitializeComponent();
-        // Capture every click in the panel, including clicks handled by child
-        // buttons, so Show Desktop placement survives post-dialog interaction.
         PreviewMouseDown += OnMainWindowPointerPressedForDesktopLayer;
-
         Loaded += OnLoaded;
         Closed += OnClosed;
+        SizeChanged += OnSizeChanged;
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        RefreshWallpaper();
-        // Fences-style wallpaper sampling: refresh the blurred backdrop when the
-        // user changes the desktop wallpaper.
-        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
-
-        // Wallpaper slideshow changes do NOT raise UserPreferenceChanged in all
-        // cases; poll the path at a low rate and rebuild only on change.
-        _wallpaperPoll = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(10),
-        };
-        _wallpaperPoll.Tick += (_, _) => PollWallpaper();
-        _wallpaperPoll.Start();
+        // Rainmeter: ShowBlur() after composition check.
+        BlurBackdrop.EnableBlur(this);
     }
 
     private void OnClosed(object? sender, EventArgs e)
     {
-        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
-        _wallpaperPoll?.Stop();
+        BlurBackdrop.DisableBlur(this);
     }
 
-    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        Dispatcher.BeginInvoke(RefreshWallpaper);
+        // Rainmeter re-creates the blur region on resize (BLURMODE_FULL).
+        BlurBackdrop.UpdateBlurRegion(this);
     }
 
-    private void PollWallpaper()
-    {
-        var path = WallpaperBackdrop.GetWallpaperPath();
-        if (!string.Equals(path, _lastWallpaperPath, StringComparison.OrdinalIgnoreCase))
-        {
-            RefreshWallpaper();
-        }
-    }
-
-    private void RefreshWallpaper()
-    {
-        var path = WallpaperBackdrop.GetWallpaperPath();
-        if (string.Equals(path, _lastWallpaperPath, StringComparison.OrdinalIgnoreCase)
-            && WallpaperBrush.ImageSource is not null)
-        {
-            return;
-        }
-
-        _lastWallpaperPath = path;
-        WallpaperBrush.ImageSource = WallpaperBackdrop.CreateBlurredWallpaperBrush().ImageSource;
-    }
-
-    /// <summary>Clicking a calendar day cell selects it and shows that day's events.</summary>
     private void OnDayCellPressed(object? sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton == MouseButtonState.Pressed
@@ -87,7 +47,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Clicking an item bar toggles its detail box, unless the click lands on the edit button.</summary>
     private void OnItemBarPressed(object? sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed
@@ -98,16 +57,12 @@ public partial class MainWindow : Window
 
         for (var v = e.OriginalSource as DependencyObject; v is not null; v = System.Windows.Media.VisualTreeHelper.GetParent(v))
         {
-            if (v is Button)
-            {
-                return;
-            }
+            if (v is Button) return;
         }
 
         item.IsExpanded = !item.IsExpanded;
     }
 
-    /// <summary>Clicking the edit button opens the editor pre-filled with the item.</summary>
     private void OnItemEditClicked(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: ScheduleEventItem item }
@@ -117,7 +72,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Context-menu action: mark the item as a long-term task (deadline 2099-01-01).</summary>
     private void OnMarkLongTerm(object? sender, RoutedEventArgs e)
     {
         if (sender is MenuItem { DataContext: ScheduleEventItem item }
@@ -127,7 +81,6 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Context-menu action: mark the item done (deadline moves just into the past).</summary>
     private void OnMarkCompleted(object? sender, RoutedEventArgs e)
     {
         if (sender is MenuItem { DataContext: ScheduleEventItem item }
@@ -137,24 +90,15 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Opens the opaque owned date-jump dialog, prefilled with the displayed month.</summary>
     private void OnMonthTitlePressed(object? sender, MouseButtonEventArgs e)
     {
-        if (e.LeftButton != MouseButtonState.Pressed)
-        {
-            return;
-        }
+        if (e.LeftButton != MouseButtonState.Pressed) return;
 
         e.Handled = true;
-        if (DataContext is not MainViewModel vm || _dateJumpWindow is not null)
-        {
-            return;
-        }
+        if (DataContext is not MainViewModel vm || _dateJumpWindow is not null) return;
 
         var localPoint = e.GetPosition(this);
-        var screenCenter = new Point(
-            Left + localPoint.X * 1.0,
-            Top + localPoint.Y * 1.0);
+        var screenCenter = new Point(Left + localPoint.X, Top + localPoint.Y);
 
         var dialog = new DateJumpWindow(vm, vm.DisplayMonth, screenCenter);
         _dateJumpWindow = dialog;
@@ -166,13 +110,8 @@ public partial class MainWindow : Window
             DesktopGlassBehavior.NotifyTransientWindow(this, false);
             PreviewMouseDown -= OnMainWindowPointerPressedWhileDateDialogOpen;
             _openingDateJumpWindow = false;
-            if (ReferenceEquals(_dateJumpWindow, dialog))
-            {
-                _dateJumpWindow = null;
-            }
+            if (ReferenceEquals(_dateJumpWindow, dialog)) _dateJumpWindow = null;
         };
-        // Deliberately do not assign the main window as Owner. The independent
-        // Topmost window stays above the panel without controlling its visibility.
         dialog.Show();
     }
 
@@ -183,31 +122,17 @@ public partial class MainWindow : Window
 
     private void OnMainWindowPointerPressedWhileDateDialogOpen(object? sender, MouseButtonEventArgs e)
     {
-        if (_openingDateJumpWindow)
-        {
-            _openingDateJumpWindow = false;
-            return;
-        }
-
+        if (_openingDateJumpWindow) { _openingDateJumpWindow = false; return; }
         _dateJumpWindow?.Close();
     }
 
-    /// <summary>Left-drag on the title bar moves the window.</summary>
     private void OnTitleBarPressed(object? sender, MouseButtonEventArgs e)
     {
-        if (e.LeftButton != MouseButtonState.Pressed)
-        {
-            return;
-        }
+        if (e.LeftButton != MouseButtonState.Pressed) return;
 
-        // The gear settings button lives inside the title bar: presses that start
-        // inside a button must not begin a window drag.
         for (var v = e.OriginalSource as DependencyObject; v is not null; v = System.Windows.Media.VisualTreeHelper.GetParent(v))
         {
-            if (v is Button)
-            {
-                return;
-            }
+            if (v is Button) return;
         }
 
         DragMove();

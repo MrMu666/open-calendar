@@ -121,24 +121,14 @@
     </Window.Resources>
 
 
-    <!-- 玻璃面板主体：三层叠放——模糊壁纸快照（WallpaperBackdrop）→ 用户色调
-         （PanelBackground 颜色×透明度）→ 内容。全部为 WPF 自身内容绘制，
-         不依赖 DWM 模糊合成层（RDP/软件渲染下同样正常）。 -->
+    <!-- 玻璃面板主体：Rainmeter 风格 DwmEnableBlurBehindWindow 实时模糊
+         （WS_EX_LAYERED 分层窗口 + DWM_BB_BLURREGION）。面板色调
+         （PanelBackground）盖在模糊之上，本地与 RDP 均不产生黑矩形。 -->
     <Border Margin="10" CornerRadius="16"
+            Background="{Binding PanelBackground}"
             BorderBrush="#66FFFFFF"
             BorderThickness="1">
-        <Grid>
-            <!-- 层1：模糊壁纸快照 -->
-            <Border CornerRadius="16" ClipToBounds="True">
-                <Border.Background>
-                    <ImageBrush x:Name="WallpaperBrush" Stretch="UniformToFill" />
-                </Border.Background>
-            </Border>
-            <!-- 层2：用户色调（颜色×不透明度，实时绑定 PanelBackground） -->
-            <Border CornerRadius="16"
-                    Background="{Binding PanelBackground}" />
-            <!-- 层3：内容 -->
-            <DockPanel>
+        <DockPanel>
 
             <!-- Title bar: date on the left (draggable), calendar/tasks switcher dead-center, gear on the right -->
             <Border DockPanel.Dock="Top" Padding="18,14,12,6"
@@ -348,6 +338,5 @@
             </Grid>
 
         </DockPanel>
-        </Grid>
     </Border>
 </Window>
