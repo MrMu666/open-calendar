@@ -87,7 +87,7 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 
 ## 约定与注意
 
-- **本地 Git 分支约定**：仓库只有 `master`（默认/主分支）和 `dev` 两个本地分支，**没有 `main`**。说「main」和「master」都指 `master`；日常在 `dev` 上开发并提交，完成后 fast-forward 合并回 `master`，`dev` 保持与 `master` 内容一致。不推送远程。
+- **本地 Git 分支约定**：仓库只有 `master`（默认/主分支）和 `dev` 两个本地分支，**没有 `main`**。说「main」和「master」都指 `master`；日常在 `dev` 上开发并提交。**禁止自动将 dev 合并到 master**——合并操作必须由用户明确指令触发（如「提交并合并到 master」）。`dev` 保持与 `master` 内容一致。不推送远程。
 - UI 文案、错误消息用中文；标识符用英文。
 - 对齐/缩进、命名风格跟随现有代码（`ScheduleEvent`、`ScheduleEventItem`、`CalendarDayCell` 等）。
 - 数据层只有 `FolderItemStore`（文件夹存储），移除了 SQLite 相关代码后没有其他存储路径。
