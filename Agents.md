@@ -58,7 +58,7 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 
 ### 桌面玻璃层（本应用核心特色，最易踩坑）
 `Platform/DesktopGlassBehavior.cs` 是 **Rainmeter 三窗口 z-order 系统的忠实移植**（System 窗口 + Helper 窗口 + 主窗口，HwndSource.AddHook 拦截 z-order 变化与最小化/关闭）。要点：
-- WPF 化改动：不用 `SetWindowSubclass`，改 `HwndSource.AddHook`（委托由 HwndSource 保活）；`WM_NCHITTEST` 未移植（由 `WindowChrome ResizeBorderThickness=8` 提供原生边缘缩放）。
+- WPF 化改动：不用 `SetWindowSubclass`，改 `HwndSource.AddHook`（委托由 HwndSource 保活）。**四边拖拽缩放是窗口级的位置检测**（`Platform/EdgeResizer.cs` + `MainWindow.xaml`）：主面板是 `AllowsTransparency` 分层窗口（+`WS_EX_NOACTIVATE`），`WindowChrome.ResizeBorderThickness`、`WM_NCHITTEST` 边界命中、乃至 `WM_SYSCOMMAND SC_SIZE` 缩放循环在分层窗口上都不可靠（左/上边缘不跟手、单个抓手元素命中也有不对称问题）。做法：整窗铺一层 `#01000000`（1/255 alpha）底衬让透明边缘全部可命中，在窗口 `PreviewMouseLeftButtonDown/Move` 里用 `GetWindowRect`+`GetCursorPos` 按光标位置判定边缘（10 DIP 带，即面板外边距），拖动时用一次 `SetWindowPos`（物理像素、`SWP_NOZORDER|SWP_NOACTIVATE`）同时改位置和尺寸，最小尺寸按 `MinWidth/MinHeight` 钳制。
 - `RegisterClassEx` 的 WndProc 委托**必须是 static readonly 字段保活**，否则 GC 回收后窗口消息会触发 `Environment.FailFast` 崩溃（代码里已注明）。
 - `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE` 让面板不抢占焦点、不进任务栏。
 

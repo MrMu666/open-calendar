@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:CalendarApp.ViewModels"
         xmlns:views="clr-namespace:CalendarApp.Views"
+        xmlns:platform="clr-namespace:CalendarApp.Platform"
         Icon="pack://application:,,,/Assets/app.ico"
         Title="日程桌面"
         Width="340" Height="500"
@@ -13,13 +14,8 @@
         Background="Transparent"
         ResizeMode="CanResize"
         ShowInTaskbar="False"
-        ShowActivated="False">
-    <WindowChrome.WindowChrome>
-        <WindowChrome CaptionHeight="0" ResizeBorderThickness="8"
-                      GlassFrameThickness="0" UseAeroCaptionButtons="False"
-                      CornerRadius="0"/>
-    </WindowChrome.WindowChrome>
-
+        ShowActivated="False"
+        platform:EdgeResizer.Enabled="True">
     <Window.Resources>
         <!-- 玻璃面板内所有滚动条统一用细半透明样式（日历/事项视图） -->
         <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinGlassScrollBar}"/>
@@ -103,10 +99,16 @@
     <!-- 玻璃面板主体：Rainmeter 风格 DwmEnableBlurBehindWindow 实时模糊
          （WS_EX_LAYERED 分层窗口 + DWM_BB_BLURREGION）。面板色调
          （PanelBackground）盖在模糊之上，本地与 RDP 均不产生黑矩形。 -->
-    <Border Margin="10" CornerRadius="16"
-            Background="{Binding PanelBackground}"
-            BorderBrush="#66FFFFFF"
-            BorderThickness="1">
+    <Grid>
+        <!-- 整窗 1/255 alpha 底衬：让透明边缘（面板四周 10px 外边距）全部可命中，
+             边缘点击必定到达窗口——缩放由 EdgeResizer 在窗口级按光标位置判定，
+             不依赖任何单个元素收到事件。 -->
+        <Border Background="#01000000" />
+
+        <Border Margin="10" CornerRadius="16"
+                Background="{Binding PanelBackground}"
+                BorderBrush="#66FFFFFF"
+                BorderThickness="1">
         <DockPanel>
 
             <!-- Title bar: date on the left (draggable), calendar/tasks switcher dead-center, gear on the right -->
@@ -317,5 +319,6 @@
             </Grid>
 
         </DockPanel>
-    </Border>
+        </Border>
+    </Grid>
 </Window>

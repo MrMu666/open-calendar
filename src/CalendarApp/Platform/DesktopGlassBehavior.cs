@@ -20,8 +20,11 @@ namespace CalendarApp.Platform;
 /// WPF adaptations vs the Avalonia original:
 /// - SetWindowSubclass (comctl32) replaced with HwndSource.AddHook; the
 ///   hook delegate is kept alive by the HwndSource (no GC FailFast risk).
-/// - WM_NCHITTEST is intentionally NOT ported: WPF WindowChrome with
-///   ResizeBorderThickness=8 provides native edge resize.
+/// - Edge resize is NOT handled here: the panel is a layered window
+///   (AllowsTransparency=true + WS_EX_NOACTIVATE), so neither WindowChrome
+///   nor a WM_NCHITTEST border hit-test can start the native sizing loop.
+///   It is implemented as a window-level, position-based resize in
+///   Platform/EdgeResizer.cs (see also the rim overlay in MainWindow.xaml).
 /// </summary>
 public static class DesktopGlassBehavior
 {
