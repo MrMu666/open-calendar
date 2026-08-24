@@ -97,6 +97,39 @@ public class FolderItemStoreTests : IDisposable
     }
 
     [Fact]
+    public void MoveToDeletedMovesFileIntoDeletedFolderAndHidesFromQueries()
+    {
+        var store = new FolderItemStore();
+        store.Open(_dir);
+        var fileName = store.Insert(new ScheduleEvent
+        {
+            Title = "待删除事项",
+            StartsAt = new DateTimeOffset(2026, 8, 22, 10, 0, 0, TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 8, 22, 10, 0, 0))),
+        });
+
+        var item = store.GetItems().Single();
+        var movedName = store.MoveToDeleted(item);
+
+        Assert.Equal(fileName, movedName);
+        Assert.False(File.Exists(Path.Combine(_dir, "items", fileName)));
+        Assert.True(File.Exists(Path.Combine(_dir, "deleted", fileName)));
+        Assert.Empty(store.GetItems());
+    }
+
+    [Fact]
+    public void MoveToDeletedCreatesDeletedFolderWhenMissing()
+    {
+        var store = new FolderItemStore();
+        store.Open(_dir);
+        store.Insert(new ScheduleEvent { Title = "待删除事项", StartsAt = DateTimeOffset.Now });
+
+        var item = store.GetItems().Single();
+        store.MoveToDeleted(item);
+
+        Assert.True(Directory.Exists(Path.Combine(_dir, "deleted")));
+    }
+
+    [Fact]
     public void SanitizeRemovesIllegalFileNameCharacters()
     {
         Assert.Equal("本周要完成A事项", FolderItemStore.SanitizeSegment("本周要完成A事项"));

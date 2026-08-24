@@ -166,6 +166,14 @@ public partial class MainViewModel : ViewModelBase
         UpdateItem(item.Event, item.Event);
     }
 
+    /// <summary>Soft-deletes the item by moving its file into the deleted/ folder.</summary>
+    public void DeleteItem(ScheduleEventItem item)
+    {
+        _services.Items.MoveToDeleted(item.Event);
+        ItemsChanged?.Invoke();
+        Refresh();
+    }
+
     [RelayCommand]
     private void ShowCalendar() => SetView(calendar: true);
 

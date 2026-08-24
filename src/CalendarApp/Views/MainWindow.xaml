@@ -63,6 +63,8 @@
                         <ContextMenu>
                             <MenuItem Header="设为长期事项" Click="OnMarkLongTerm" />
                             <MenuItem Header="设为已完成" Click="OnMarkCompleted" />
+                            <Separator/>
+                            <MenuItem Header="删除" Click="OnDeleteItem" />
                         </ContextMenu>
                     </Border.ContextMenu>
                     <DockPanel>

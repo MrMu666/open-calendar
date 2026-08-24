@@ -90,6 +90,15 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnDeleteItem(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { DataContext: ScheduleEventItem item }
+            && DataContext is MainViewModel vm)
+        {
+            vm.DeleteItem(item);
+        }
+    }
+
     private void OnMonthTitlePressed(object? sender, MouseButtonEventArgs e)
     {
         if (e.LeftButton != MouseButtonState.Pressed) return;

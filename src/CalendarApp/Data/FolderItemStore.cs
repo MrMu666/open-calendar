@@ -18,6 +18,9 @@ public sealed class FolderItemStore : IDisposable
     /// <summary>Sub-directory that holds all item files (flat storage).</summary>
     public const string ItemsDirectoryName = "items";
 
+    /// <summary>Sub-directory that holds deleted item files (soft-delete trash).</summary>
+    public const string DeletedDirectoryName = "deleted";
+
     private readonly object _gate = new();
     private string? _rootPath;
     private FileSystemWatcher? _watcher;
@@ -26,6 +29,8 @@ public sealed class FolderItemStore : IDisposable
     public string? RootPath => _rootPath;
 
     public string? ItemsPath => _rootPath is null ? null : Path.Combine(_rootPath, ItemsDirectoryName);
+
+    public string? DeletedPath => _rootPath is null ? null : Path.Combine(_rootPath, DeletedDirectoryName);
 
     public bool IsOpen => _rootPath is not null;
 
@@ -190,6 +195,43 @@ public sealed class FolderItemStore : IDisposable
         {
             File.Delete(path);
         }
+    }
+
+    /// <summary>
+    /// Soft-deletes an item by moving its file into the deleted/ folder next to
+    /// items/ (creating the folder when missing). Items with only synthetic ids
+    /// (legacy/unknown files) no-op. Returns the destination file name, or null
+    /// when nothing was moved.
+    /// </summary>
+    public string? MoveToDeleted(ScheduleEvent item)
+    {
+        ArgumentNullException.ThrowIfNull(_rootPath);
+        if (item.FileName is null)
+        {
+            return null;
+        }
+
+        var source = Path.Combine(ItemsPath!, item.FileName);
+        if (!File.Exists(source))
+        {
+            return null;
+        }
+
+        var deletedPath = DeletedPath!;
+        Directory.CreateDirectory(deletedPath);
+
+        var destination = Path.Combine(deletedPath, item.FileName);
+        if (File.Exists(destination))
+        {
+            // Extremely unlikely (same file already trashed): add a short suffix
+            // so nothing is ever silently overwritten.
+            destination = Path.Combine(
+                deletedPath,
+                $"{Path.GetFileNameWithoutExtension(item.FileName)}_{DateTime.UtcNow:HHmmssfff}.md");
+        }
+
+        File.Move(source, destination);
+        return Path.GetFileName(destination);
     }
 
     public long Count()
