@@ -21,6 +21,9 @@
     </WindowChrome.WindowChrome>
 
     <Window.Resources>
+        <!-- 玻璃面板内所有滚动条统一用细半透明样式（日历/事项视图） -->
+        <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinGlassScrollBar}"/>
+
         <!-- 日程条目模板（日历选中日 / 事项列表共用） -->
         <DataTemplate x:Key="EventItemTemplate" DataType="{x:Type vm:ScheduleEventItem}">
             <Border Margin="0,4" Padding="12,9" CornerRadius="9"
