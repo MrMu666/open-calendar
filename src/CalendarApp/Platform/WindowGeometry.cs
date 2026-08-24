@@ -95,11 +95,60 @@ public static class WindowGeometry
     }
 
     /// <summary>
-    /// Docks the window at the bottom-right of its monitor's work area with a
-    /// 16px physical-pixel margin, using the default 340x500 DIP size.
+    /// Computes the default panel size (DIPs) sized to the current desktop
+    /// resolution: roughly 18% of the work-area width x 50% of its height,
+    /// scaled back to DIPs via the window DPI and clamped to the allowed range.
+    /// Returns the 340x500 constants when the window, monitor or DPI cannot be
+    /// determined. Higher-resolution screens get a proportionally larger panel.
     /// </summary>
-    public static void DockBottomRight(Window w)
+    public static (double Width, double Height) ComputeAdaptiveSize(Window w)
     {
+        var hwnd = new WindowInteropHelper(w).Handle;
+        if (hwnd == IntPtr.Zero)
+        {
+            return (DefaultWidth, DefaultHeight);
+        }
+
+        var dpi = GetDpiForWindow(hwnd);
+        if (dpi == 0)
+        {
+            dpi = 96;
+        }
+        double scale = dpi / 96.0;
+
+        var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if (!GetMonitorInfo(monitor, out var mi))
+        {
+            return (DefaultWidth, DefaultHeight);
+        }
+
+        int workW = mi.rcWork.Right - mi.rcWork.Left;
+        int workH = mi.rcWork.Bottom - mi.rcWork.Top;
+        if (workW <= 0 || workH <= 0)
+        {
+            return (DefaultWidth, DefaultHeight);
+        }
+
+        double width = Math.Round(workW * 0.18) / scale;
+        double height = Math.Round(workH * 0.5) / scale;
+
+        // Respect the window's own XAML minimums so sizing never fights layout.
+        return (Math.Max(w.MinWidth, Clamp(width, MinSize, MaxSize)),
+                Math.Max(w.MinHeight, Clamp(height, MinSize, MaxSize)));
+    }
+
+    /// <summary>
+    /// Sizes the panel to the current desktop resolution and docks it at the
+    /// bottom-right of its monitor's work area with a 16px margin. Used by the
+    /// tray "重置窗口位置" action and by the default placement on a fresh setup
+    /// where there is no saved geometry to restore.
+    /// </summary>
+    public static void ApplyDefaultPlacement(Window w)
+    {
+        var (width, height) = ComputeAdaptiveSize(w);
+        w.Width = width;
+        w.Height = height;
+
         var hwnd = new WindowInteropHelper(w).Handle;
         if (hwnd == IntPtr.Zero)
         {
@@ -111,13 +160,21 @@ public static class WindowGeometry
         {
             dpi = 96;
         }
-
         double scale = dpi / 96.0;
-        int widthPx = (int)(DefaultWidth * scale);
-        int heightPx = (int)(DefaultHeight * scale);
+        DockBottomRight(hwnd, (int)Math.Round(width * scale), (int)Math.Round(height * scale));
+    }
 
+    /// <summary>
+    /// Docks the window at the bottom-right of its monitor's work area with a
+    /// 16px physical-pixel margin, given the window's intended physical size.
+    /// </summary>
+    private static void DockBottomRight(IntPtr hwnd, int widthPx, int heightPx)
+    {
         var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-        GetMonitorInfo(monitor, out var mi);
+        if (!GetMonitorInfo(monitor, out var mi))
+        {
+            return;
+        }
 
         int x = mi.rcWork.Right - widthPx - DockMarginPx;
         int y = mi.rcWork.Bottom - heightPx - DockMarginPx;
@@ -126,7 +183,10 @@ public static class WindowGeometry
             SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
-    /// <summary>Clears persisted geometry and re-docks to the default position.</summary>
+    private static double Clamp(double value, double min, double max) =>
+        Math.Clamp(value, min, max);
+
+    /// <summary>Clears persisted geometry, sizes to the current resolution, and docks it bottom-right.</summary>
     public static void ResetPosition(Window w, UserSettings settings)
     {
         settings.WindowX = null;
@@ -135,9 +195,7 @@ public static class WindowGeometry
         settings.WindowHeight = null;
         settings.Save();
 
-        w.Width = DefaultWidth;
-        w.Height = DefaultHeight;
-        DockBottomRight(w);
+        ApplyDefaultPlacement(w);
     }
 
     [StructLayout(LayoutKind.Sequential)]

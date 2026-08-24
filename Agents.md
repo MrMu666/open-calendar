@@ -68,6 +68,7 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 
 ### 窗口几何持久化
 `Platform/WindowGeometry.cs`：位置存**物理像素**（`GetWindowRect`/`SetWindowPos`），尺寸存 **DIP**（`ActualWidth/Height`），跨 DPI 显示器拖动时位置不受缩放影响。位置超出 `[200,4000]` 视为无效，回退到右下角贴边。
+- **分辨率自适应尺寸**：`ComputeAdaptiveSize` 根据当前显示器工作区按比例算尺寸（宽≈工作区 18%、高≈50%，除以 DPI 得 DIP，并在窗口自身 Min 值以上）；`ApplyDefaultPlacement` 同时设尺寸并贴右下角。托盘「重置窗口位置」与首次运行（无几何记录）都走它。
 
 ### 视图
 `MainWindow` 有日历/事项两个子视图（顶栏分段按钮切换，用 `LastViewSettings` 恢复）。另有 `SettingsWindow`、`ItemEditorWindow`（含 SimpleMarkdown 预览）、`DateJumpWindow`（点击月标题弹出的日期跳转浮层，涉及 `NotifyTransientWindow` 保持 Show Desktop z-order）。

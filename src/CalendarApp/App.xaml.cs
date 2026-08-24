@@ -116,7 +116,9 @@ public partial class App : Application
 
         if (!TryRestoreWindowGeometry(w))
         {
-            w.SourceInitialized += (_, _) => WindowGeometry.DockBottomRight(w);
+            // No saved geometry (e.g. first run on a new machine): size the
+            // panel to the current desktop resolution and dock it bottom-right.
+            w.SourceInitialized += (_, _) => WindowGeometry.ApplyDefaultPlacement(w);
         }
 
         _mainWindow = w;
