@@ -14,8 +14,8 @@
 - 解决方案文件：`open-calendar-desktop.slnx`（新版 XML 语法；`dotnet build` / `dotnet test` 在根目录直接可用）
 - MVVM：`CommunityToolkit.Mvvm` 8.4.2（`[ObservableProperty]` / `[RelayCommand]` 源生成器）
 - 系统托盘：`H.NotifyIcon.Wpf` 2.4.1（`TaskbarIcon`）
-- SQLite：`Microsoft.Data.Sqlite` 10.0.11（**遗留/兼容层**，见下）
 - 无 DI 容器：`AppServices` 为手写单例组合根
+- **已移除**：遗留 SQLite 兼容层（`Microsoft.Data.Sqlite`、`ScheduleDatabase`/`ScheduleRepository`）已从项目删除，文件夹存储是唯一数据来源。
 - 无第三方 Markdown 库：内置 `SimpleMarkdown`（用 `ChineseLunisolarCalendar`，同样无第三方依赖）
 
 ## 代码结构
@@ -24,27 +24,26 @@
 open-calendar-desktop.slnx
 src/CalendarApp/
   App.xaml / App.xaml.cs      # 组合根：单实例、托盘、窗口生命周期、几何持久化
-  AppServices.cs              # 手写服务单例（Settings / Items / Database）
+  AppServices.cs              # 手写服务单例（Settings / Items）
   Theme.cs                    # 强调色画刷工厂
   Models/                     # ScheduleEvent, LunarCalendar
-  Data/                       # 文件夹存储(主) + 遗留 sqlite 存储
+  Data/                       # 文件夹存储（唯一数据源）
   Platform/                   # Win32 桌面玻璃层、模糊、窗口几何、开机启动
   ViewModels/                 # MainViewModel, SettingsViewModel, ViewModelBase
   Views/                      # MainWindow, SettingsWindow, ItemEditorWindow, DateJumpWindow, SimpleMarkdown
   Converters/                 # InverseBooleanToVisibilityConverter
   Themes/GlassStyles.xaml     # 全局玻璃样式资源
-tests/CalendarApp.Tests/      # xUnit 20 个测试（文件夹存储、农历、sqlite、设置）
+tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置）
 ```
 
 ## 关键架构决策
 
-### 数据存储：文件夹 Markdown 为主，SQLite 为遗留
-- **主存储是 `FolderItemStore`**：一个普通文件夹里放 `items/*.md`，文件名即数据，格式
+### 数据存储：文件夹 Markdown（唯一数据源）
+- **唯一存储是 `FolderItemStore`**：一个普通文件夹里放 `items/*.md`，文件名即数据，格式
   `items/yyyyMMdd-HHmmss_yyyyMMdd-HHmmss_P<级别>_<净化标题>[_<标签>].md`
   （字段用 `_` 分隔、字段内用 `-`；`P1..P4`；文末注释引用了 `存储目录设计.md`，但该文档**不在本仓库**）。
   `FileSystemWatcher` 实时监听，300ms 去抖后触发 `ItemsChanged`。
-- **`ScheduleDatabase`/`ScheduleRepository` 是遗留 SQLite 兼容层**，当前不是主存储（`AppServices` 注释明确说明）。WAL 并发设计、`MigrateLegacyAppSettingsInto` 一次性迁移历史偏好到 settings.json。
-- 若改动数据层，务必确认改的是 `FolderItemStore` 而非遗留 `ScheduleRepository`。
+- 遗留 SQLite 兼容层（`ScheduleDatabase`/`ScheduleRepository`）已整体移除，**不要**再依赖任何 sqlite 概念。
 
 ### 设置存放
 - `~/.scheduleapp/settings.json`（`UserSettings`）：上次打开文件夹、外观（`BackgroundColor`/`BackgroundOpacity`/`AccentColor`）、窗口几何、开机启动。
@@ -83,6 +82,6 @@ tests/CalendarApp.Tests/      # xUnit 20 个测试（文件夹存储、农历、
 
 - UI 文案、错误消息用中文；标识符用英文。
 - 对齐/缩进、命名风格跟随现有代码（`ScheduleEvent`、`ScheduleEventItem`、`CalendarDayCell` 等）。
-- 修改数据层区分主存储（文件夹）与遗留（sqlite）。
+- 数据层只有 `FolderItemStore`（文件夹存储），移除了 SQLite 相关代码后没有其他存储路径。
 - 桌面玻璃层改动风险高：涉及 Win32 HWND、z-order、委托保活、DPI，改后需在本机实际运行验证（Show Desktop、拖动多显示器、RDP）。
 - `.gitignore` 忽略 `bin/ obj/ publish/ .omo/` 等；`.freebuff/` 未跟踪（本工具状态目录，勿提交）。

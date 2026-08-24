@@ -7,10 +7,11 @@ namespace CalendarApp.Data;
 
 /// <summary>
 /// The only state the app keeps between sessions in the user profile: the path
-/// of the last opened sqlite data file plus app-level preferences (appearance,
+/// of the last opened storage folder plus app-level preferences (appearance,
 /// window geometry). Stored as a small JSON file in the current user's profile
-/// directory (e.g. <c>~/.scheduleapp/settings.json</c>). The data file itself
-/// only holds schedule items; nothing else is ever written outside these two.
+/// directory (e.g. <c>~/.scheduleapp/settings.json</c>). The storage folder
+/// itself only holds schedule items; nothing else is ever written outside
+/// these two.
 /// </summary>
 public sealed class UserSettings
 {
@@ -23,8 +24,13 @@ public sealed class UserSettings
         PropertyNameCaseInsensitive = true,
     };
 
-    /// <summary>Absolute path of the last sqlite data file the user opened, if any.</summary>
-    public string? LastOpenedFile { get; set; }
+    /// <summary>
+    /// Absolute path of the last storage folder the user opened, if any.
+    /// Serialized under the legacy key "LastOpenedFile" so configs saved before
+    /// the SQLite layer was removed still restore the same folder.
+    /// </summary>
+    [JsonPropertyName("LastOpenedFile")]
+    public string? LastOpenedFolder { get; set; }
 
     /// <summary>Glass panel background color as hex (e.g. "#0D1117").</summary>
     public string BackgroundColor { get; set; } = "#0D1117";

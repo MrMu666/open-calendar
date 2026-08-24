@@ -15,14 +15,10 @@ public sealed class AppServices
     /// <summary>Primary store: a folder of markdown item files, live-watched.</summary>
     public FolderItemStore Items { get; }
 
-    /// <summary>Legacy SQLite data file (kept for compatibility); not the primary store.</summary>
-    public ScheduleDatabase Database { get; }
-
-    private AppServices(UserSettings settings, FolderItemStore items, ScheduleDatabase database)
+    private AppServices(UserSettings settings, FolderItemStore items)
     {
         Settings = settings;
         Items = items;
-        Database = database;
     }
 
     /// <summary>
@@ -33,9 +29,8 @@ public sealed class AppServices
     {
         var settings = UserSettings.Load();
         var items = new FolderItemStore();
-        var database = new ScheduleDatabase();
 
-        var last = settings.LastOpenedFile;
+        var last = settings.LastOpenedFolder;
         if (!string.IsNullOrWhiteSpace(last) && Directory.Exists(last))
         {
             try
@@ -49,6 +44,6 @@ public sealed class AppServices
             }
         }
 
-        return new AppServices(settings, items, database);
+        return new AppServices(settings, items);
     }
 }

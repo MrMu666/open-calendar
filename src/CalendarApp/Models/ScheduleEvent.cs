@@ -1,14 +1,14 @@
 namespace CalendarApp.Models;
 
 /// <summary>
-/// A single schedule item persisted in the sqlite data file.
+/// A single schedule item persisted as a markdown file in the storage folder.
 /// Times are stored as UTC instants and converted to local time for display.
 /// </summary>
 public sealed class ScheduleEvent
 {
     public long Id { get; set; }
 
-    /// <summary>Item file name when stored in the folder store (null for legacy sqlite rows).</summary>
+    /// <summary>Item file name in the folder store.</summary>
     public string? FileName { get; set; }
 
     public required string Title { get; set; }

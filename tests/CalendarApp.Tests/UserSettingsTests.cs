@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using CalendarApp.Data;
 using Xunit;
 
@@ -34,20 +35,37 @@ public class UserSettingsTests : IDisposable
     public void LoadReturnsEmptyWhenNoFileExists()
     {
         var settings = UserSettings.Load(_settingsPath);
-        Assert.Null(settings.LastOpenedFile);
+        Assert.Null(settings.LastOpenedFolder);
     }
 
     [Fact]
-    public void SaveAndLoadRoundTripsLastOpenedFile()
+    public void SaveAndLoadRoundTripsLastOpenedFolder()
     {
-        var expected = Path.GetFullPath(Path.Combine(_dir, "data", "my-schedule.db"));
+        var expected = Path.GetFullPath(Path.Combine(_dir, "data", "my-schedule"));
 
-        var before = new UserSettings { LastOpenedFile = expected };
+        var before = new UserSettings { LastOpenedFolder = expected };
         before.Save(_settingsPath);
         Assert.True(File.Exists(_settingsPath));
 
         var after = UserSettings.Load(_settingsPath);
-        Assert.Equal(expected, after.LastOpenedFile);
+        Assert.Equal(expected, after.LastOpenedFolder);
+    }
+
+    [Fact]
+    public void LoadHonorsLegacyLastOpenedFileKey()
+    {
+        // Configs written before the SQLite layer was removed used the key
+        // "LastOpenedFile"; it must still restore the same folder path.
+        const string legacyPath = @"C:\data\my-schedule";
+        Directory.CreateDirectory(_dir);
+        var legacyJson = JsonSerializer.Serialize(new Dictionary<string, string>
+        {
+            ["LastOpenedFile"] = legacyPath,
+        });
+        File.WriteAllText(_settingsPath, legacyJson);
+
+        var settings = UserSettings.Load(_settingsPath);
+        Assert.Equal(legacyPath, settings.LastOpenedFolder);
     }
 
     [Fact]
@@ -71,7 +89,7 @@ public class UserSettingsTests : IDisposable
         File.WriteAllText(_settingsPath, "this is { not valid json at all");
 
         var settings = UserSettings.Load(_settingsPath);
-        Assert.Null(settings.LastOpenedFile);
+        Assert.Null(settings.LastOpenedFolder);
     }
 
     [Fact]

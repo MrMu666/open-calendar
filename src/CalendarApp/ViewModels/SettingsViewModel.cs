@@ -80,7 +80,7 @@ public partial class SettingsViewModel : ViewModelBase
             _services.Items.Open(fullPath);
 
             // The one and only cross-session datum, recorded in the user profile.
-            _services.Settings.LastOpenedFile = fullPath;
+            _services.Settings.LastOpenedFolder = fullPath;
             _services.Settings.Save();
 
             Status = $"✓ 已加载日程文件夹：{fullPath}";
