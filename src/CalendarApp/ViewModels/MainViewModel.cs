@@ -170,7 +170,13 @@ public partial class MainViewModel : ViewModelBase
     private void ShowCalendar() => SetView(calendar: true);
 
     [RelayCommand]
-    private void ShowTasks() => SetView(calendar: false);
+    private void ShowTasks()
+    {
+        _selectedDate = DateTime.Today;
+        _hasExplicitSelection = false;
+        UpdateHeaderState();
+        SetView(calendar: false);
+    }
 
     [RelayCommand]
     private void PrevMonth() => SetDisplayMonth(DisplayMonth.AddMonths(-1));
