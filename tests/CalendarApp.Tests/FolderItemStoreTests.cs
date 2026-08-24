@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using CalendarApp.Data;
 using CalendarApp.Models;
@@ -127,6 +128,134 @@ public class FolderItemStoreTests : IDisposable
         store.MoveToDeleted(item);
 
         Assert.True(Directory.Exists(Path.Combine(_dir, "deleted")));
+    }
+
+    [Fact]
+    public void ArchiveExpiredItemsMovesExpiredItemIntoYearSubfolder()
+    {
+        var store = new FolderItemStore();
+        store.Open(_dir);
+
+        var expiredStart = DateTimeOffset.Now.AddDays(-3);
+        var expiredName = store.Insert(new ScheduleEvent
+        {
+            Title = "过期事项",
+            StartsAt = expiredStart,
+            EndsAt = expiredStart.AddHours(1),
+        });
+        var activeName = store.Insert(new ScheduleEvent
+        {
+            Title = "未过期事项",
+            StartsAt = DateTimeOffset.Now,
+            EndsAt = DateTimeOffset.Now.AddDays(1),
+        });
+
+        store.ArchiveExpiredItems();
+
+        // Expired item moved into archive/YYYY/ by start year; active stays in items/.
+        var year = expiredStart.ToLocalTime().Year.ToString(CultureInfo.InvariantCulture);
+        Assert.True(File.Exists(Path.Combine(_dir, "archive", year, expiredName)));
+        Assert.False(File.Exists(Path.Combine(_dir, "items", expiredName)));
+        Assert.True(File.Exists(Path.Combine(_dir, "items", activeName)));
+
+        // The active item is the only one the tasks view sees.
+        Assert.Single(store.GetItems());
+    }
+
+    [Fact]
+    public void UpdateMovesArchivedItemBackToItemsWhenDeadlineExtended()
+    {
+        var store = new FolderItemStore();
+        store.Open(_dir);
+
+        var expiredStart = DateTimeOffset.Now.AddDays(-2);
+        var originalName = store.Insert(new ScheduleEvent
+        {
+            Title = "已完成事项",
+            StartsAt = expiredStart,
+            EndsAt = expiredStart.AddHours(1),
+        });
+        store.ArchiveExpiredItems();
+
+        // The day view still shows the archived (completed) item on its start day.
+        var day = new DateTimeOffset(expiredStart.ToLocalTime().Date);
+        var archived = store.GetEventsOnDay(day).Single();
+        Assert.Equal("已完成事项", archived.Title);
+
+        // Updating its deadline into the future moves it back into items/.
+        archived.EndsAt = DateTimeOffset.Now.AddDays(5);
+        var newName = store.Update(archived, archived);
+
+        Assert.NotEqual(originalName, newName);
+        Assert.True(File.Exists(Path.Combine(_dir, "items", newName)));
+        Assert.Contains(store.GetItems(), i => i.Title == "已完成事项");
+    }
+
+    [Fact]
+    public void UpdateMovesItemToArchiveWhenDeadlinePasses()
+    {
+        var store = new FolderItemStore();
+        store.Open(_dir);
+
+        var activeName = store.Insert(new ScheduleEvent
+        {
+            Title = "即将过期",
+            StartsAt = DateTimeOffset.Now,
+            EndsAt = DateTimeOffset.Now.AddDays(1),
+        });
+
+        var item = store.GetItems().Single();
+        item.EndsAt = DateTimeOffset.Now.AddSeconds(-1);
+        var newName = store.Update(item, item);
+
+        Assert.NotEqual(activeName, newName);
+        Assert.False(File.Exists(Path.Combine(_dir, "items", newName)));
+        Assert.True(File.Exists(Path.Combine(_dir, "archive",
+            item.StartsAt.ToLocalTime().Year.ToString(CultureInfo.InvariantCulture), newName)));
+        Assert.DoesNotContain(store.GetItems(), i => i.Title == "即将过期");
+    }
+
+    [Fact]
+    public void GetEventsOnDayIncludesArchivedItems()
+    {
+        var store = new FolderItemStore();
+        store.Open(_dir);
+
+        var expiredStart = DateTimeOffset.Now.AddDays(-1);
+        store.Insert(new ScheduleEvent
+        {
+            Title = "已过期仍可见",
+            StartsAt = expiredStart,
+            EndsAt = expiredStart.AddHours(1),
+        });
+        store.ArchiveExpiredItems();
+
+        var day = new DateTimeOffset(expiredStart.ToLocalTime().Date);
+        Assert.Contains(store.GetEventsOnDay(day), i => i.Title == "已过期仍可见");
+    }
+
+    [Fact]
+    public void MoveToDeletedWorksForArchivedItems()
+    {
+        var store = new FolderItemStore();
+        store.Open(_dir);
+
+        var expiredStart = DateTimeOffset.Now.AddDays(-2);
+        store.Insert(new ScheduleEvent
+        {
+            Title = "归档待删除",
+            StartsAt = expiredStart,
+            EndsAt = expiredStart.AddHours(1),
+        });
+        store.ArchiveExpiredItems();
+
+        var day = new DateTimeOffset(expiredStart.ToLocalTime().Date);
+        var archived = store.GetEventsOnDay(day).Single();
+        var movedName = store.MoveToDeleted(archived);
+
+        Assert.NotNull(movedName);
+        Assert.True(File.Exists(Path.Combine(_dir, "deleted", movedName!)));
+        Assert.DoesNotContain(store.GetEventsOnDay(day), i => i.Title == "归档待删除");
     }
 
     [Fact]

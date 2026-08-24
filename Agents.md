@@ -41,8 +41,14 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 ### 数据存储：文件夹 Markdown（唯一数据源）
 - **唯一存储是 `FolderItemStore`**：一个普通文件夹里放 `items/*.md`，文件名即数据，格式
   `items/yyyyMMdd-HHmmss_yyyyMMdd-HHmmss_P<级别>_<净化标题>[_<标签>].md`
-  （字段用 `_` 分隔、字段内用 `-`；`P1..P4`；文末注释引用了 `存储目录设计.md`，但该文档**不在本仓库**）。
+  （字段用 `_` 分隔、字段内用 `-`；`P1..P4`；规则见仓库根目录 `存储目录设计.md`）。
   `FileSystemWatcher` 实时监听，300ms 去抖后触发 `ItemsChanged`。
+- **归档**：截止时间已过的事项由 `ArchiveExpiredItems()` 移入 `archive/YYYY/`（YYYY=开始/创建年份），
+  `MainViewModel.Refresh`/`ReloadItems` 每次刷新都会执行（幂等）。`Update(old, new)` 按新截止时间决定落点：
+  截止仍过期 → 留在 archive/；截止改为将来 → 移回 items/（编辑已完成事项即走此路径）。
+  `MoveToDeleted` 也能从 archive/ 里把文件删进 `deleted/`。
+- **查询边界**：`GetItems`（事项列表）只读 items/（未过期项）；`GetUpcoming`/`GetEventsOnDay`（日历圆点、
+  选中日日程）同时读 items/ + archive/，所以已完成事项仍显示在它开始的那天，可继续编辑/设为长期/删除。
 - 遗留 SQLite 兼容层（`ScheduleDatabase`/`ScheduleRepository`）已整体移除，**不要**再依赖任何 sqlite 概念。
 
 ### 设置存放
@@ -76,7 +82,7 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 ## 常用命令
 
 - 构建：`dotnet build`（根目录，走 slnx）
-- 测试：`dotnet test`（20 个 xUnit 测试，全部通过）
+- 测试：`dotnet test`（xUnit 测试，全部通过）
 - 主项目：`src/CalendarApp/CalendarApp.csproj`
 
 ## 约定与注意

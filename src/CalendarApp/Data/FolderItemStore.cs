@@ -9,6 +9,8 @@ namespace CalendarApp.Data;
 /// 存储目录设计.md:
 ///
 ///   items/YYYYMMDD-HHmmss_YYYYMMDD-HHmmss_P&lt;级别&gt;_&lt;净化后的标题&gt;_&lt;标签&gt;.md
+///   archive/YYYY/  — items whose deadline has passed, grouped by start (creation) year
+///   deleted/       — items soft-deleted by the user
 ///
 /// File name fields are separated by '_'; a field's internal separator is '-'.
 /// Times are local wall-clock, formatted as the file name requires.
@@ -17,6 +19,12 @@ public sealed class FolderItemStore : IDisposable
 {
     /// <summary>Sub-directory that holds all item files (flat storage).</summary>
     public const string ItemsDirectoryName = "items";
+
+    /// <summary>
+    /// Sub-directory that holds expired items, grouped by the item's start
+    /// (creation) year: archive/YYYY/… (see 存储目录设计.md).
+    /// </summary>
+    public const string ArchiveDirectoryName = "archive";
 
     /// <summary>Sub-directory that holds deleted item files (soft-delete trash).</summary>
     public const string DeletedDirectoryName = "deleted";
@@ -29,6 +37,8 @@ public sealed class FolderItemStore : IDisposable
     public string? RootPath => _rootPath;
 
     public string? ItemsPath => _rootPath is null ? null : Path.Combine(_rootPath, ItemsDirectoryName);
+
+    public string? ArchivePath => _rootPath is null ? null : Path.Combine(_rootPath, ArchiveDirectoryName);
 
     public string? DeletedPath => _rootPath is null ? null : Path.Combine(_rootPath, DeletedDirectoryName);
 
@@ -80,8 +90,10 @@ public sealed class FolderItemStore : IDisposable
     }
 
     /// <summary>
-    /// Non-deleted items whose start instant is in [from, to). Items are sorted
-    /// by start time (then title) and limited to <paramref name="limit"/>.
+    /// Non-deleted items whose start instant is in [from, to), including
+    /// archived (expired) items — the calendar day view shows past events too.
+    /// Items are sorted by start time (then title) and limited to
+    /// <paramref name="limit"/>.
     /// </summary>
     public IReadOnlyList<ScheduleEvent> GetUpcoming(
         DateTimeOffset from, DateTimeOffset? to = null, int limit = 100)
@@ -90,7 +102,7 @@ public sealed class FolderItemStore : IDisposable
         var toLocal = to?.ToLocalTime();
 
         var result = new List<ScheduleEvent>();
-        foreach (var file in EnumerateItemFiles())
+        foreach (var file in EnumerateAllFiles())
         {
             if (!TryParseItemFile(file, out var item))
             {
@@ -141,11 +153,42 @@ public sealed class FolderItemStore : IDisposable
         return result;
     }
 
-    /// <summary>Inserts a new item file. Returns the file name used.</summary>
+    /// <summary>
+    /// Inserts a new item file into items/. Returns the file name used.
+    /// (Newly created items always land in items/; the archive sweep moves
+    /// them to archive/ if their deadline has already passed.)
+    /// </summary>
     public string Insert(ScheduleEvent item)
     {
         ArgumentNullException.ThrowIfNull(_rootPath);
+        return WriteItemFile(item, ItemsPath!);
+    }
 
+    /// <summary>
+    /// Replaces an existing item's file wherever it currently lives (items/ or
+    /// archive/YYYY/) and rewrites it at the location appropriate for the new
+    /// deadline: a passed deadline goes to archive/, a future deadline returns
+    /// the file to items/. Returns the new file name.
+    /// </summary>
+    public string Update(ScheduleEvent oldItem, ScheduleEvent newItem)
+    {
+        ArgumentNullException.ThrowIfNull(_rootPath);
+
+        DeleteItemFileAnywhere(oldItem);
+
+        var directory = IsExpired(newItem)
+            ? GetArchiveDirectory(newItem)
+            : ItemsPath!;
+        return WriteItemFile(newItem, directory);
+    }
+
+    /// <summary>
+    /// Builds the designed file name, resolves collisions, and writes the file
+    /// into <paramref name="directory"/> (creating it when missing). Returns
+    /// the file name used.
+    /// </summary>
+    private string WriteItemFile(ScheduleEvent item, string directory)
+    {
         var startsAt = item.StartsAt.ToLocalTime();
         var endsAt = (item.EndsAt ?? item.StartsAt).ToLocalTime();
         var priority = item.Priority is >= 1 and <= 4 ? item.Priority : 3;
@@ -163,20 +206,28 @@ public sealed class FolderItemStore : IDisposable
             ? $"{startPart}_{endPart}_P{priority}_{title}.md"
             : $"{startPart}_{endPart}_P{priority}_{title}_{tags}.md";
 
-        var fullPath = Path.Combine(ItemsPath!, fileName);
+        var fullPath = Path.Combine(directory, fileName);
         if (File.Exists(fullPath))
         {
             // Extremely unlikely (same second + same title + same tags): add a
             // short suffix so the file is never silently overwritten.
             fullPath = Path.Combine(
-                ItemsPath!,
+                directory,
                 $"{Path.GetFileNameWithoutExtension(fullPath)}_{DateTime.UtcNow:HHmmssfff}.md");
         }
 
-        var content = item.Notes ?? string.Empty;
-        File.WriteAllText(fullPath, content, System.Text.Encoding.UTF8);
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(fullPath, item.Notes ?? string.Empty, System.Text.Encoding.UTF8);
         return Path.GetFileName(fullPath);
     }
+
+    /// <summary>True when the item's deadline has already passed.</summary>
+    private static bool IsExpired(ScheduleEvent item) =>
+        item.EndsAt is { } end && end < DateTimeOffset.Now;
+
+    /// <summary>archive/YYYY/ for the item's start (creation) year.</summary>
+    private string GetArchiveDirectory(ScheduleEvent item) =>
+        Path.Combine(ArchivePath!, item.StartsAt.ToLocalTime().Year.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
     /// Deletes an item. When the item is backed by a real file it is deleted
@@ -199,9 +250,10 @@ public sealed class FolderItemStore : IDisposable
 
     /// <summary>
     /// Soft-deletes an item by moving its file into the deleted/ folder next to
-    /// items/ (creating the folder when missing). Items with only synthetic ids
-    /// (legacy/unknown files) no-op. Returns the destination file name, or null
-    /// when nothing was moved.
+    /// items/ (creating the folder when missing). Works for active items in
+    /// items/ and for archived items in archive/YYYY/. Items with only synthetic
+    /// ids (legacy/unknown files) no-op. Returns the destination file name, or
+    /// null when nothing was moved.
     /// </summary>
     public string? MoveToDeleted(ScheduleEvent item)
     {
@@ -211,8 +263,8 @@ public sealed class FolderItemStore : IDisposable
             return null;
         }
 
-        var source = Path.Combine(ItemsPath!, item.FileName);
-        if (!File.Exists(source))
+        var source = FindItemFile(item);
+        if (source is null)
         {
             return null;
         }
@@ -234,6 +286,44 @@ public sealed class FolderItemStore : IDisposable
         return Path.GetFileName(destination);
     }
 
+    /// <summary>
+    /// Moves every item in items/ whose deadline has passed into
+    /// archive/YYYY/ (YYYY = the item's start year), creating the year folder
+    /// when missing. Idempotent — safe to run on every reload.
+    /// </summary>
+    public void ArchiveExpiredItems()
+    {
+        ArgumentNullException.ThrowIfNull(_rootPath);
+
+        foreach (var file in Directory.EnumerateFiles(ItemsPath!, "*.md", SearchOption.TopDirectoryOnly))
+        {
+            if (!TryParseItemFile(file, out var item))
+            {
+                continue;
+            }
+
+            if (!IsExpired(item))
+            {
+                continue;
+            }
+
+            var directory = GetArchiveDirectory(item);
+            Directory.CreateDirectory(directory);
+
+            var destination = Path.Combine(directory, item.FileName!);
+            if (File.Exists(destination))
+            {
+                // Extremely unlikely (same file already archived): add a short
+                // suffix so nothing is ever silently overwritten.
+                destination = Path.Combine(
+                    directory,
+                    $"{Path.GetFileNameWithoutExtension(item.FileName)}_{DateTime.UtcNow:HHmmssfff}.md");
+            }
+
+            File.Move(file, destination);
+        }
+    }
+
     public long Count()
     {
         long count = 0;
@@ -242,6 +332,41 @@ public sealed class FolderItemStore : IDisposable
             count++;
         }
         return count;
+    }
+
+    /// <summary>Finds an item's file in items/ first, then any archive/YYYY/ folder.</summary>
+    private string? FindItemFile(ScheduleEvent item)
+    {
+        if (item.FileName is null)
+        {
+            return null;
+        }
+
+        var inItems = Path.Combine(ItemsPath!, item.FileName);
+        if (File.Exists(inItems))
+        {
+            return inItems;
+        }
+
+        foreach (var directory in EnumerateArchiveDirectories())
+        {
+            var path = Path.Combine(directory, item.FileName);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+
+        return null;
+    }
+
+    private void DeleteItemFileAnywhere(ScheduleEvent item)
+    {
+        var path = FindItemFile(item);
+        if (path is not null)
+        {
+            File.Delete(path);
+        }
     }
 
     private IEnumerable<string> EnumerateItemFiles()
@@ -256,6 +381,45 @@ public sealed class FolderItemStore : IDisposable
                      .OrderBy(Path.GetFileName, StringComparer.Ordinal))
         {
             yield return file;
+        }
+    }
+
+    /// <summary>All item files: items/ plus every archive/YYYY/ folder.</summary>
+    private IEnumerable<string> EnumerateAllFiles()
+    {
+        var itemsPath = ItemsPath;
+        if (itemsPath is not null && Directory.Exists(itemsPath))
+        {
+            foreach (var file in Directory.EnumerateFiles(itemsPath, "*.md", SearchOption.TopDirectoryOnly)
+                         .OrderBy(Path.GetFileName, StringComparer.Ordinal))
+            {
+                yield return file;
+            }
+        }
+
+        var archivePath = ArchivePath;
+        if (archivePath is not null && Directory.Exists(archivePath))
+        {
+            foreach (var file in Directory.EnumerateFiles(archivePath, "*.md", SearchOption.AllDirectories)
+                         .OrderBy(Path.GetFileName, StringComparer.Ordinal))
+            {
+                yield return file;
+            }
+        }
+    }
+
+    private IEnumerable<string> EnumerateArchiveDirectories()
+    {
+        var archivePath = ArchivePath;
+        if (archivePath is null || !Directory.Exists(archivePath))
+        {
+            yield break;
+        }
+
+        foreach (var directory in Directory.EnumerateDirectories(archivePath)
+                     .OrderBy(x => x, StringComparer.Ordinal))
+        {
+            yield return directory;
         }
     }
 

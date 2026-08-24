@@ -24,34 +24,8 @@
         <!-- 玻璃面板内所有滚动条统一用细半透明样式（日历/事项视图） -->
         <Style TargetType="ScrollBar" BasedOn="{StaticResource ThinGlassScrollBar}"/>
 
-        <!-- 日程条目模板（日历选中日 / 事项列表共用） -->
-        <DataTemplate x:Key="EventItemTemplate" DataType="{x:Type vm:ScheduleEventItem}">
-            <Border Margin="0,4" Padding="12,9" CornerRadius="9"
-                    Background="#1FFFFFFF"
-                    BorderBrush="#33FFFFFF" BorderThickness="1">
-                <DockPanel>
-                    <TextBlock Text="{Binding TimeText}"
-                               DockPanel.Dock="Left"
-                               MinWidth="48" FontSize="12"
-                               Foreground="#A8E6CF" />
-                    <StackPanel>
-                        <TextBlock Text="{Binding Title}"
-                                   FontSize="13" Foreground="#F8FFFFFF"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding LocationText}"
-                                   Visibility="{Binding HasLocation,
-                                        Converter={StaticResource BoolToVis}}"
-                                   FontSize="11" Foreground="#8CFFFFFF" />
-                        <TextBlock Text="{Binding MetaText}"
-                                   FontSize="10" Foreground="#8CFFFFFF"
-                                   Opacity="0.75" />
-                    </StackPanel>
-                </DockPanel>
-            </Border>
-        </DataTemplate>
-
-        <!-- 事项列表条目模板：左绿/红日期两行(居中)，中标题+两行内容预览，
-             右标签 chip + 编辑按钮；右键菜单/点击展开 -->
+        <!-- 事项条模板（日历选中日 / 事项列表共用）：左绿/红日期两行(居中)，
+             中标题+两行内容预览，右标签 chip + 编辑按钮；右键菜单/点击展开 -->
         <DataTemplate x:Key="ItemListTemplate" DataType="{x:Type vm:ScheduleEventItem}">
             <StackPanel Margin="0,4">
                 <Border Padding="12,4,8,5" CornerRadius="9"
@@ -301,9 +275,9 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- 选中日期的日程 -->
+                        <!-- 选中日期的日程（与事项列表相同的事项条样式/功能） -->
                         <ItemsControl ItemsSource="{Binding DayEvents}"
-                                      ItemTemplate="{StaticResource EventItemTemplate}" />
+                                      ItemTemplate="{StaticResource ItemListTemplate}" />
                         <TextBlock Text="这一天没有日程"
                                    Visibility="{Binding HasSelectedDayEvents,
                                        Converter={StaticResource InvBoolToVis}}"

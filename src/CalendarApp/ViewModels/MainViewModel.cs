@@ -140,11 +140,15 @@ public partial class MainViewModel : ViewModelBase
         Refresh();
     }
 
-    /// <summary>Replaces an existing item's file and refreshes the panel.</summary>
+    /// <summary>
+    /// Replaces an existing item's file and refreshes the panel. The store moves
+    /// the file between items/ and archive/ based on the new deadline — e.g.
+    /// updating a completed (archived) item's time into the future brings it
+    /// back into items/.
+    /// </summary>
     public void UpdateItem(ScheduleEvent oldItem, ScheduleEvent newItem)
     {
-        _services.Items.Delete(oldItem);
-        _services.Items.Insert(newItem);
+        _services.Items.Update(oldItem, newItem);
         ItemsChanged?.Invoke();
         Refresh();
     }
@@ -340,6 +344,10 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
+        // Files may have been added/edited outside the app; sweep any items
+        // whose deadline has passed into archive/ (idempotent).
+        _services.Items.ArchiveExpiredItems();
+
         RebuildCalendar();
         LoadDayEvents();
         LoadUpcomingItems();
@@ -356,6 +364,12 @@ public partial class MainViewModel : ViewModelBase
 
     public void Refresh()
     {
+        // Items whose deadline has passed belong in archive/ per 存储目录设计.md.
+        if (_services.Items.IsOpen)
+        {
+            _services.Items.ArchiveExpiredItems();
+        }
+
         _selectedDate = DateTime.Today;
         _hasExplicitSelection = false;
         UpdateHeaderState();
