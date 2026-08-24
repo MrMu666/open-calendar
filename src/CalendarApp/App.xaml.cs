@@ -196,6 +196,18 @@ public partial class App : Application
         _tray.ContextMenu = menu;
 
         _tray.TrayLeftMouseUp += (_, _) => CreateAndShowMainWindow();
+
+        // Explicitly register the tray icon with the OS.
+        //
+        // TaskbarIcon (H.NotifyIcon.Wpf) only calls ForceCreate() from its own
+        // Loaded event. Loaded never fires here because the icon is created as a
+        // plain code-behind object and never added to a window's visual tree, so
+        // without this the Shell_NotifyIcon(NIM_ADD) registration never runs and
+        // no tray icon appears. The false flag keeps Windows 11 Efficiency Mode
+        // off so the app's foreground/background behaviour is unchanged. The icon
+        // asset loads asynchronously; TrayIcon.UpdateIcon covers both orderings,
+        // pushing the real HICON to the tray once it is ready.
+        _tray.ForceCreate(enablesEfficiencyMode: false);
     }
 
     private static System.Windows.Controls.MenuItem MakeMenuItem(
