@@ -113,19 +113,17 @@ public partial class ItemEditorWindow : Window
         Top = Clamp(_mainCenter.Y - ActualHeight / 2, workArea.Top, workArea.Bottom - ActualHeight);
 
         ContentBox.Focus();
-        RefreshPreview();
-    }
-
-    private void OnContentChanged(object? sender, TextChangedEventArgs e)
-    {
-        RefreshPreview();
-        UpdateDerivedTitle();
     }
 
     private void OnCloseClicked(object? sender, RoutedEventArgs e)
     {
         _allowClose = true;
         Close();
+    }
+
+    private void OnContentChanged(object? sender, TextChangedEventArgs e)
+    {
+        UpdateDerivedTitle();
     }
 
     private void OnTitleBarPressed(object? sender, MouseButtonEventArgs e)
@@ -308,8 +306,6 @@ public partial class ItemEditorWindow : Window
 
         return time.TotalHours < 24 && time.TotalHours >= 0 ? time : null;
     }
-
-    private void RefreshPreview() => SimpleMarkdown.Render(ContentBox.Text ?? string.Empty, PreviewPanel);
 
     private void UpdateDerivedTitle()
     {

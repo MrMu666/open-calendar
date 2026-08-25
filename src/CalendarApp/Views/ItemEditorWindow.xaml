@@ -185,32 +185,15 @@
                     </ComboBox>
                 </Grid>
 
-                <!-- 内容区：左 Markdown 编辑，右预览 -->
-                <Grid Grid.Row="4" Margin="0,8,0,0" MinHeight="120">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <DockPanel Grid.Column="0">
-                        <TextBlock DockPanel.Dock="Top" Text="Markdown 内容" FontSize="11"
-                                   Foreground="#64748B" Margin="0,0,0,4" />
-                        <TextBox x:Name="ContentBox" AcceptsReturn="True" TextWrapping="Wrap"
-                                 FontFamily="Consolas, Microsoft YaHei" FontSize="12"
-                                 TextChanged="OnContentChanged"
-                                 Padding="8" Background="#FFFFFF" Foreground="#1A2333"/>
-                    </DockPanel>
-                    <GridSplitter Grid.Column="1" Width="3" Background="#CBD5E1"
-                                  HorizontalAlignment="Center" VerticalAlignment="Stretch"
-                                  Margin="8,0"/>
-                    <DockPanel Grid.Column="2">
-                        <TextBlock DockPanel.Dock="Top" Text="预览" FontSize="11"
-                                   Foreground="#64748B" Margin="0,0,0,4" />
-                        <ScrollViewer x:Name="PreviewScroller" VerticalScrollBarVisibility="Auto"
-                                      Background="#FFFFFF" Padding="8" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel x:Name="PreviewPanel" />
-                        </ScrollViewer>
-                    </DockPanel>
-                </Grid>
+                <!-- 内容区：纯文本编辑 -->
+                <DockPanel Grid.Row="4" Margin="0,8,0,0" MinHeight="120">
+                    <TextBlock DockPanel.Dock="Top" Text="内容" FontSize="11"
+                               Foreground="#64748B" Margin="0,0,0,4" />
+                    <TextBox x:Name="ContentBox" AcceptsReturn="True" TextWrapping="Wrap"
+                             FontFamily="Consolas, Microsoft YaHei" FontSize="12"
+                             TextChanged="OnContentChanged"
+                             Padding="8" Background="#FFFFFF" Foreground="#1A2333"/>
+                </DockPanel>
 
             </Grid>
 

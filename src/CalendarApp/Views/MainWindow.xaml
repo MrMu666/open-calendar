@@ -42,10 +42,10 @@
                                     VerticalAlignment="Center">
                             <TextBlock Text="{Binding StartDateText}"
                                        FontSize="13" FontWeight="SemiBold"
-                                       Foreground="#4CAF50" />
+                                       Foreground="#03D96B" />
                             <TextBlock Text="{Binding EndDateText}"
                                        FontSize="13" FontWeight="SemiBold"
-                                       Foreground="#EF5350" Margin="0,3,0,0"/>
+                                       Foreground="#FF4D4D" Margin="0,3,0,0"/>
                         </StackPanel>
                         <StackPanel DockPanel.Dock="Right" Margin="8,0,0,0"
                                     VerticalAlignment="Top">
