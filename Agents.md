@@ -143,6 +143,9 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
   - 点击色块选色后关闭
   - 点击 Popup 外任意位置关闭（`StackPanel.PreviewMouseLeftButtonDown` 遍历视觉树判定）
 - **ItemEditorWindow**：定位在构造函数中设 `Left`/`Top`（不等到 `ContentRendered`，消除首次渲染闪烁），并用 `SystemParameters.WorkArea` 钳制边缘不超出屏幕；标题框回车触发保存；去掉了「P1-P4 仅用于文件名」提示文字
+- **应用弹出的临时窗口约定（SettingsWindow / ItemEditorWindow / DateJumpWindow）**：主面板在 Win+D 期间被 `DesktopGlassBehavior` 每 250ms 重申到 TOPMOST 带正下方（即所有普通窗口之上），所以任何从面板打开的临时窗口**必须**：
+  1. `Topmost="True"`——进 TOPMOST 带，否则会被 250ms 的 z-order 重申压到面板后面（设置窗口曾因此被遮）；
+  2. Show 前调 `DesktopGlassBehavior.NotifyTransientWindow(mainWindow, true)`、Closed 时调 `false`——防止临时窗口持有前台时 Show Desktop 状态被误判翻转。
 
 ## 常用命令
 

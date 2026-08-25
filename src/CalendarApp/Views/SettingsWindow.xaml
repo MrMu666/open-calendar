@@ -6,7 +6,8 @@
         Width="460" Height="525"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
-        ShowActivated="True">
+        ShowActivated="True"
+        Topmost="True">
 
     <Window.Resources>
         <!-- 点击颜色预览块后弹出的调色板（预设色块，由代码填充 PaletteGrid） -->

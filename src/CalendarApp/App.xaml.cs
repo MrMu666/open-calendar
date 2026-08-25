@@ -165,6 +165,15 @@ public partial class App : Application
         {
             w.Owner = _mainWindow;
             w.ShowInTaskbar = true;
+
+            // Same treatment as the item editor: during Show Desktop (Win+D)
+            // the panel is re-asserted above every normal window every 250ms,
+            // which would bury this normal-band window behind it. Topmost=True
+            // puts the settings window in the TOPMOST band, and
+            // NotifyTransientWindow keeps the Show Desktop state stable while
+            // this window holds the foreground.
+            DesktopGlassBehavior.NotifyTransientWindow(_mainWindow, true);
+            w.Closed += (_, _) => DesktopGlassBehavior.NotifyTransientWindow(_mainWindow, false);
         }
         w.Show();
     }
