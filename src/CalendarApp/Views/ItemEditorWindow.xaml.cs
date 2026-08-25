@@ -28,10 +28,19 @@ public partial class ItemEditorWindow : Window
         _viewModel = viewModel;
         _mainCenter = mainCenter;
         _existing = existing;
-        InitializeComponent();
 
         Width = Math.Max(420, width);
         Height = Math.Max(360, height);
+
+        // Position now (before first render) to avoid a flicker at (0,0).
+        // ActualWidth/Height aren't known yet, so compute from the Width/Height we just set.
+        var targetLeft = mainCenter.X - Width / 2;
+        var targetTop = mainCenter.Y - Height / 2;
+        var workArea = SystemParameters.WorkArea;
+        Left = Clamp(targetLeft, workArea.Left, workArea.Right - Width);
+        Top = Clamp(targetTop, workArea.Top, workArea.Bottom - Height);
+
+        InitializeComponent();
 
         if (existing is not null)
         {
@@ -98,8 +107,10 @@ public partial class ItemEditorWindow : Window
 
     private void OnContentRendered(object? sender, EventArgs e)
     {
-        Left = _mainCenter.X - ActualWidth / 2;
-        Top = _mainCenter.Y - ActualHeight / 2;
+        // Re-clamp: ActualWidth/Height may differ from Width/Height after DPI / chrome.
+        var workArea = SystemParameters.WorkArea;
+        Left = Clamp(_mainCenter.X - ActualWidth / 2, workArea.Left, workArea.Right - ActualWidth);
+        Top = Clamp(_mainCenter.Y - ActualHeight / 2, workArea.Top, workArea.Bottom - ActualHeight);
 
         ContentBox.Focus();
         RefreshPreview();
@@ -325,4 +336,17 @@ public partial class ItemEditorWindow : Window
 
     private static DateTime Combine(DateTime date, TimeSpan time) =>
         date.Date.Add(time);
+
+    private static double Clamp(double value, double min, double max) =>
+        value < min ? min : value > max ? max : value;
+
+    /// <summary>Enter in the title box = save.</summary>
+    private void OnTitleBoxKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            OnSaveClicked(sender, e);
+            e.Handled = true;
+        }
+    }
 }

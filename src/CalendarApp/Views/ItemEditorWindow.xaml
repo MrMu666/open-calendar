@@ -70,7 +70,8 @@
 
                 <!-- 标题 -->
                 <TextBox x:Name="TitleBox" Grid.Row="0" FontSize="12"
-                         VerticalContentAlignment="Center" Padding="6,4"/>
+                         VerticalContentAlignment="Center" Padding="6,4"
+                         KeyDown="OnTitleBoxKeyDown"/>
 
                 <!-- 开始日期：直接填写，紧凑排布 -->
                 <Grid Grid.Row="1" Margin="0,8,0,0">
@@ -182,9 +183,6 @@
                         <ComboBoxItem Content="一般" />
                         <ComboBoxItem Content="长期" />
                     </ComboBox>
-                    <TextBlock Grid.Column="4" Text="P1-P4 仅用于文件名，不在此显示" FontSize="10"
-                               Foreground="#94A3B8" VerticalAlignment="Center" Margin="8,0,0,0"
-                               TextTrimming="CharacterEllipsis"/>
                 </Grid>
 
                 <!-- 内容区：左 Markdown 编辑，右预览 -->

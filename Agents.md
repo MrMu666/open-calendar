@@ -142,6 +142,7 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
   - 点击色块预览：同目标再次点击关闭（切换），新目标切换并打开
   - 点击色块选色后关闭
   - 点击 Popup 外任意位置关闭（`StackPanel.PreviewMouseLeftButtonDown` 遍历视觉树判定）
+- **ItemEditorWindow**：定位在构造函数中设 `Left`/`Top`（不等到 `ContentRendered`，消除首次渲染闪烁），并用 `SystemParameters.WorkArea` 钳制边缘不超出屏幕；标题框回车触发保存；去掉了「P1-P4 仅用于文件名」提示文字
 
 ## 常用命令
 
