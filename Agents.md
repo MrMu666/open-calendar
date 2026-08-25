@@ -79,6 +79,11 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 ### 视图
 `MainWindow` 有日历/事项两个子视图（顶栏分段按钮切换，用 `LastViewSettings` 恢复）。另有 `SettingsWindow`、`ItemEditorWindow`（含 SimpleMarkdown 预览）、`DateJumpWindow`（点击月标题弹出的日期跳转浮层，涉及 `NotifyTransientWindow` 保持 Show Desktop z-order）。
 
+- **设置页选色 Popup**：`SettingsWindow.xaml` 的调色板 `Popup` 用 `StaysOpen="True"`（不用 `StaysOpen="False"`），因为点击色块预览触发 `MouseLeftButtonDown` 打开 Popup 的一瞬间，WPF 会判定该点击在 Popup 之外从而立即关闭它。关闭逻辑改为手动管理：
+  - 点击色块预览：同目标再次点击关闭（切换），新目标切换并打开
+  - 点击色块选色后关闭
+  - 点击 Popup 外任意位置关闭（`StackPanel.PreviewMouseLeftButtonDown` 遍历视觉树判定）
+
 ## 常用命令
 
 - 构建：`dotnet build`（根目录，走 slnx）

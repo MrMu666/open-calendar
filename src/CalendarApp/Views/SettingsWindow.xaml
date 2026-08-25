@@ -22,7 +22,7 @@
     </Window.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="22">
+        <StackPanel Margin="22" PreviewMouseLeftButtonDown="OnPanelPreviewMouseDown">
             <TextBlock Text="存储文件夹"
                        FontSize="15" FontWeight="SemiBold" />
 
@@ -133,7 +133,7 @@
 
             <!-- 调色板 Popup：点击预览块时从代码触发 -->
             <Popup x:Name="PalettePopup" PlacementTarget="{Binding ElementName=BgSwatch}"
-                   Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                   Placement="Bottom" StaysOpen="True" AllowsTransparency="True">
                 <Border Padding="12" CornerRadius="8" Background="White"
                         BorderBrush="#33000000" BorderThickness="1">
                     <UniformGrid x:Name="PaletteGrid" Columns="6" HorizontalAlignment="Center" />

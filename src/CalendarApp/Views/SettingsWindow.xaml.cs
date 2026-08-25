@@ -52,15 +52,47 @@ public partial class SettingsWindow : Window
         }
     }
 
-    /// <summary>Left-click on the color preview block opens the palette popup.</summary>
+    /// <summary>Left-click on the color preview block toggles the palette popup.</summary>
     private void OnColorPreviewPressed(object? sender, MouseButtonEventArgs e)
     {
         if (sender is Border c)
         {
-            _paletteTarget = c.Tag as string == "accent" ? "accent" : "background";
+            var target = c.Tag as string == "accent" ? "accent" : "background";
+
+            // If already open for this target, close it (toggle)
+            if (PalettePopup.IsOpen && _paletteTarget == target)
+            {
+                PalettePopup.IsOpen = false;
+                e.Handled = true;
+                return;
+            }
+
+            _paletteTarget = target;
             PalettePopup.PlacementTarget = c;
             PalettePopup.IsOpen = true;
+            e.Handled = true;
         }
+    }
+
+    /// <summary>Close the palette when clicking outside it.</summary>
+    private void OnPanelPreviewMouseDown(object? sender, MouseButtonEventArgs e)
+    {
+        if (!PalettePopup.IsOpen) return;
+
+        // Determine if the click was inside the popup or on the swatch preview border
+        var hit = e.OriginalSource as DependencyObject;
+        if (hit != null)
+        {
+            // Walk up the visual tree: if we find the Popup child Border, the click is inside the popup
+            while (hit != null)
+            {
+                if (hit == PaletteGrid || hit == PalettePopup.Child) return;
+                if (hit == BgSwatch || hit == AccentSwatch) return;
+                hit = VisualTreeHelper.GetParent(hit);
+            }
+        }
+
+        PalettePopup.IsOpen = false;
     }
 
     /// <summary>Clicking a swatch applies its color and closes the palette.</summary>
