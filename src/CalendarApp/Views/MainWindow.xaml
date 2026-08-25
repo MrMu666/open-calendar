@@ -25,7 +25,7 @@
         <DataTemplate x:Key="ItemListTemplate" DataType="{x:Type vm:ScheduleEventItem}">
             <StackPanel Margin="0,4">
                 <Border Padding="12,4,8,5" CornerRadius="9"
-                        Background="#1FFFFFFF"
+                        Background="{Binding ItemBackground}"
                         BorderBrush="#33FFFFFF" BorderThickness="1"
                         MouseLeftButtonDown="OnItemBarPressed"
                         Cursor="Hand">

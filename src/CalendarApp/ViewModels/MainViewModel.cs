@@ -433,6 +433,14 @@ public sealed partial class ScheduleEventItem : ObservableObject
     [ObservableProperty]
     public partial bool IsExpanded { get; set; }
 
+    /// <summary>Semi-transparent red for high-priority items (P1=紧急, P2=优先), default otherwise.</summary>
+    public Brush ItemBackground => Event.Priority switch
+    {
+        1 => new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0x4D, 0x4D)), // 20% red
+        2 => new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0x4D, 0x4D)), // 10% red
+        _ => new SolidColorBrush(Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF)), // default near-white
+    };
+
     public string Title => Event.Title;
 
     public string TimeText => Event.AllDay ? "全天" : Event.StartsAt.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
