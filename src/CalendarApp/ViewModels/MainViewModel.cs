@@ -35,8 +35,11 @@ public partial class MainViewModel : ViewModelBase
             Application.Current?.Dispatcher.BeginInvoke(ReloadItems);
         Refresh();
 
-        // 恢复上次关闭时显示的子窗口（日历 / 事项）
-        if (LastViewSettings.Load().IsTasksView)
+        // 恢复上次关闭时显示的子窗口（日历 / 事项）。
+        // 必须用共享的 _services.LastView 实例——直接 Load() 会拿到另一份拷贝，
+        // 而 SetView 里的 Save() 会用只含 View 的全新对象覆盖 lastWindow.json，
+        // 从而清空 Geometry 字典（见 SetView 的注释）。
+        if (_services.LastView.IsTasksView)
         {
             SetView(calendar: false);
         }
@@ -243,8 +246,12 @@ public partial class MainViewModel : ViewModelBase
             LoadUpcomingItems();
         }
 
-        // 记住当前子窗口，下次启动恢复
-        new LastViewSettings { View = calendar ? "calendar" : "tasks" }.Save();
+        // 记住当前子窗口，下次启动恢复。
+        // 关键：必须更新共享实例再 Save()，不能 new LastViewSettings{...}.Save()——
+        // 那样会把整个 lastWindow.json 覆盖成只含 View 的新对象，清空 Geometry
+        // 字典，导致窗口位置/大小永远记录不下来。
+        _services.LastView.View = calendar ? "calendar" : "tasks";
+        _services.LastView.Save();
     }
 
     private void SetDisplayMonth(DateTime month)

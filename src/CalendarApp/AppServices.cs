@@ -9,15 +9,19 @@ namespace CalendarApp;
 /// </summary>
 public sealed class AppServices
 {
-    /// <summary>Cross-session preferences written to ~/.scheduleapp/settings.json.</summary>
+    /// <summary>Cross-session preferences written to ~/.calendarapp/settings.json.</summary>
     public UserSettings Settings { get; }
+
+    /// <summary>Per-resolution window geometry + last view, stored in lastWindow.json.</summary>
+    public LastViewSettings LastView { get; }
 
     /// <summary>Primary store: a folder of markdown item files, live-watched.</summary>
     public FolderItemStore Items { get; }
 
-    private AppServices(UserSettings settings, FolderItemStore items)
+    private AppServices(UserSettings settings, LastViewSettings lastView, FolderItemStore items)
     {
         Settings = settings;
+        LastView = lastView;
         Items = items;
     }
 
@@ -28,6 +32,7 @@ public sealed class AppServices
     public static AppServices Create()
     {
         var settings = UserSettings.Load();
+        var lastView = LastViewSettings.Load();
         var items = new FolderItemStore();
 
         var last = settings.LastOpenedFolder;
@@ -44,6 +49,6 @@ public sealed class AppServices
             }
         }
 
-        return new AppServices(settings, items);
+        return new AppServices(settings, lastView, items);
     }
 }

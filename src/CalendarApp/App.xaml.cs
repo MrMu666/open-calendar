@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using CalendarApp.Models;
 using CalendarApp.Platform;
 using CalendarApp.ViewModels;
@@ -27,6 +28,9 @@ public partial class App : Application
     private DispatcherTimer? _geometrySaveTimer;
     private Window? _geometryWindow;
 
+    private DispatcherTimer? _displayChangedTimer;
+    private DispatcherTimer? _displayChangedFollowUpTimer;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         // Single-instance guard: a second instance silently exits before any
@@ -46,6 +50,12 @@ public partial class App : Application
         _services = AppServices.Create();
         Theme.ApplyAccent(_services.Settings.AccentColor);
         Theme.RegisterResources();
+
+        // RDP 连接/断开、显示器热插拔、分辨率/DPI 变化都不触发窗口的
+        // LocationChanged/SizeChanged，但都会改变当前显示器的几何，所以必须
+        // 监听系统事件并在变化后重新对齐窗口位置与大小。
+        SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        SystemEvents.SessionSwitch += OnSessionSwitch;
 
         // Self-heal the Run key if the exe path changed since last launch.
         if (_services.Settings.LaunchAtStartup)
@@ -70,6 +80,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        SystemEvents.SessionSwitch -= OnSessionSwitch;
         try { _tray?.Dispose(); }
         catch { /* best-effort */ }
         try { _services?.Items.Dispose(); }
@@ -110,7 +122,11 @@ public partial class App : Application
         // WallpaperBackdrop + MainWindow.RefreshWallpaper), which is safe on
         // every compositor.
 
-        w.LocationChanged += (_, _) => ScheduleGeometrySave(w);
+        w.LocationChanged += (_, _) =>
+        {
+            if (!WindowGeometry.OnMovedOrResized(w, _services.LastView))
+                ScheduleGeometrySave(w);
+        };
         w.SizeChanged += (_, _) => ScheduleGeometrySave(w);
         w.Closing += (_, _) => SaveWindowGeometry(w);
 
@@ -257,7 +273,57 @@ public partial class App : Application
             return;
         }
 
-        WindowGeometry.SaveNow(w, _services.Settings);
+        WindowGeometry.SaveNow(w, _services.LastView);
+    }
+
+    /// <summary>
+    /// DisplaySettingsChanged fires on RDP connect/disconnect, monitor hot-plug
+    /// and resolution/DPI changes. Windows often reports the monitor info a
+    /// little late, so we debounce the reconcile and then run a follow-up check
+    /// to catch the settled geometry (mirrors the wallpaper-transition pattern).
+    /// </summary>
+    private void OnDisplaySettingsChanged(object? sender, EventArgs e)
+    {
+        ScheduleDisplayReconcile();
+    }
+
+    private void OnSessionSwitch(object? sender, SessionSwitchEventArgs e)
+    {
+        // RemoteConnect / ConsoleConnect / SessionLogon: the desktop resolution
+        // may have changed while the session was away.
+        if (e.Reason is SessionSwitchReason.RemoteConnect
+            or SessionSwitchReason.ConsoleConnect
+            or SessionSwitchReason.SessionLogon)
+        {
+            ScheduleDisplayReconcile();
+        }
+    }
+
+    private void ScheduleDisplayReconcile()
+    {
+        _displayChangedTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(700) };
+        _displayChangedTimer.Stop();
+        _displayChangedTimer.Tick += OnDisplayChangedTick;
+        _displayChangedTimer.Start();
+
+        _displayChangedFollowUpTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
+        _displayChangedFollowUpTimer.Stop();
+        _displayChangedFollowUpTimer.Tick += OnDisplayChangedFollowUpTick;
+        _displayChangedFollowUpTimer.Start();
+    }
+
+    private void OnDisplayChangedTick(object? sender, EventArgs e)
+    {
+        _displayChangedTimer?.Stop();
+        if (_services is null || _mainWindow is null) return;
+        WindowGeometry.Reconcile(_mainWindow, _services.LastView);
+    }
+
+    private void OnDisplayChangedFollowUpTick(object? sender, EventArgs e)
+    {
+        _displayChangedFollowUpTimer?.Stop();
+        if (_services is null || _mainWindow is null) return;
+        WindowGeometry.Reconcile(_mainWindow, _services.LastView);
     }
 
     private bool TryRestoreWindowGeometry(Window w)
@@ -267,7 +333,7 @@ public partial class App : Application
             return false;
         }
 
-        return WindowGeometry.TryRestore(w, _services.Settings);
+        return WindowGeometry.TryRestore(w, _services.LastView);
     }
 
     private void ResetWindowPosition()
@@ -277,6 +343,6 @@ public partial class App : Application
             return;
         }
 
-        WindowGeometry.ResetPosition(_mainWindow, _services.Settings);
+        WindowGeometry.ResetPosition(_mainWindow, _services.LastView);
     }
 }
