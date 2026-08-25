@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CalendarApp.Data;
 using CalendarApp.Models;
+using CalendarApp.Platform;
 
 namespace CalendarApp.ViewModels;
 
@@ -88,6 +89,15 @@ public partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial double BackgroundOpacity { get; set; } = 0.6;
+
+    [ObservableProperty]
+    public partial double BlurRadius { get; set; } = 15;
+
+    partial void OnBlurRadiusChanged(double value)
+    {
+        if (Application.Current?.MainWindow is not null)
+            BlurBackdrop.SetBlurRadius(Application.Current.MainWindow, value);
+    }
 
     /// <summary>Composite background brush for the glass panel.</summary>
     [ObservableProperty]
@@ -358,6 +368,7 @@ public partial class MainViewModel : ViewModelBase
     {
         BackgroundColor = _services.Settings.BackgroundColor;
         BackgroundOpacity = _services.Settings.BackgroundOpacity;
+        BlurRadius = _services.Settings.BlurRadius;
         Theme.ApplyAccent(_services.Settings.AccentColor);
         RebuildBackground();
     }

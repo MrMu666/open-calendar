@@ -110,8 +110,16 @@ public partial class App : Application
         // WallpaperBackdrop + MainWindow.RefreshWallpaper), which is safe on
         // every compositor.
 
-        w.LocationChanged += (_, _) => ScheduleGeometrySave(w);
-        w.SizeChanged += (_, _) => ScheduleGeometrySave(w);
+        w.LocationChanged += (_, _) =>
+        {
+            ScheduleGeometrySave(w);
+            BlurBackdrop.ScheduleRefresh(w);
+        };
+        w.SizeChanged += (_, _) =>
+        {
+            ScheduleGeometrySave(w);
+            BlurBackdrop.ScheduleRefresh(w);
+        };
         w.Closing += (_, _) => SaveWindowGeometry(w);
 
         if (!TryRestoreWindowGeometry(w))

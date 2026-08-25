@@ -62,10 +62,69 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 - `RegisterClassEx` 的 WndProc 委托**必须是 static readonly 字段保活**，否则 GC 回收后窗口消息会触发 `Environment.FailFast` 崩溃（代码里已注明）。
 - `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE` 让面板不抢占焦点、不进任务栏。
 
-### 模糊/背板：不要用 DWM 合成
-- `BlurBackdrop`：Rainmeter 式 `DwmEnableBlurBehindWindow` + `DWM_BB_BLURREGION`，DPI 感知，resize 时重建 region。
-- `WallpaperBackdrop`：Fences 式壁纸快照模糊（读取 `SPI_GETDESKWALLPAPER` 壁纸位图，降采样再放大≈高斯模糊），**纯客户端内容，RDP/软件渲染下输出一致**。
-- **重要约定：不要给主面板加 `DwmSetWindowAttribute`/`SetWindowCompositionAttribute` 的 DWM 合成**——在 RDP/软件合成器下会渲染成不透明黑块（App.xaml.cs 里有专门注释）。模糊优先走 `WallpaperBackdrop`（RDP 安全），本机走 `BlurBackdrop`。
+### 模糊/背板：壁纸截取 + WPF BlurEffect（RDP 安全，无 DWM）
+
+背板由四个图层叠加（自下而上）：
+
+1. **整窗 1/255 alpha 底衬** — 命中测试层，让透明边缘全部可命中（缩放用）
+2. **壁纸+色调层**（Grid 直接子元素，`Margin=10`，与内容面板同尺寸/同圆角）：
+   - **壁纸模糊层** — `WallpaperImage`（`Stretch=Fill`），`WallpaperBackdrop.CropForWindow()`
+     截取，`BlurEffect` 模糊。`OpacityMask`（`DrawingBrush` + `RectangleGeometry(16,16)`）
+     精确裁剪四个圆角——**不用 Clip 属性**（会膨胀命中几何、阻断 EdgeResizer）
+   - **用户颜色层** — `Border`（`CornerRadius=16` 自身裁切圆角），`SolidColorBrush`
+3. **面板内容** — 日历/事项等 UI 控件
+
+`WallpaperBackdrop` 要点（v4）：
+- **图像源**：总是从 `%AppData%\Microsoft\Windows\Themes\TranscodedWallpaper` 加载——
+  Windows 每次换壁纸（手动/幻灯片/主题切换）都重写这个文件，它永远是当前桌面位图。
+  **不使用 `IDesktopWallpaper.GetWallpaper` 拿壁纸路径**——幻灯片轮换时 COM 可能返回
+  旧路径（写文件是异步的），导致永远显示第一张壁纸
+- **WPF 缓存绕行**：`LoadWallpaper` 用 `FileStream` 读入后构造 `BitmapImage`（
+  `StreamSource` + `OnLoad`），**不用 `UriSource`**——即使设了 `CacheOption=OnLoad`，
+  WPF 内部 URI 缓存也可能在同一个 URI 反复加载时返回已缓存的实例。
+  TranscodedWallpaper 是被就地覆盖的，必须每次读盘
+- **显示器 RECT**：`IDesktopWallpaper` COM 仍用于按窗口中心点匹配显示器 RECT（只用于
+  裁剪原点计算），不再从 COM 拿壁纸路径
+- **无 DPI 缩放**：壁纸像素直接按布局模式映射到显示器物理像素。
+  WPF 的 `Stretch=Fill` 自动处理 DIP↔物理像素转换——截取尺寸=窗口物理尺寸，
+  在任何 DPI 下 GPU 都做 1:1 屏幕像素映射
+- **布局感知**：支持 Fill/Fit/Stretch/Center/Tile 五种壁纸布局模式
+- **壁纸变化感知**：`SystemEvents.UserPreferenceChanged`（Desktop 类别）+ `FileSystemWatcher`
+  监听 `TranscodedWallpaper` 文件。两者都通过 300ms 去抖（`DispatcherTimer`）合并为
+  一次 `WallpaperChanged` 事件，且 `FileSystemWatcher` 回调通过 `Dispatcher.BeginInvoke`
+  封送到 UI 线程（避免跨线程 COM 死锁）
+- **重试机制**：`BlurBackdrop.RefreshBlur` 在 `CropForWindow` 返回 null 时自动重试最多
+  3 次（幻灯片轮播瞬间文件可能正在写入）
+- **性能**：`BlurBackdrop.ScheduleRefresh` 100ms 去抖（窗口移动/缩放）；
+  WPF `BlurEffect` 走 GPU 着色器路径
+
+**重要约定**：
+- **不要重新引入 DWM 合成**（`DwmEnableBlurBehindWindow`、`SetWindowCompositionAttribute`、
+  `DwmSetWindowAttribute`）——在 RDP/软件合成器下渲染为不透明黑块
+- `BlurBackdrop` 已移除所有 DWM/GDI 代码（`CreateRectRgn`、`DeleteObject` 等），只管理 WPF 层
+- **不要给壁纸做 DPI 缩放**（`GetWallpaperDpiScale` 已删除）——壁纸像素直接对物理像素，
+  Stretch=Fill 自动处理 DIP 转换。`Stretch=None` + 手动 DIP 重缩放是错误的路径
+- 壁纸监听必须保留 `FileSystemWatcher` 路径（幻灯片轮播刚需），且必须封送到 UI 线程
+- **壁纸图像源永远用 `TranscodedWallpaper`**（不用 `IDesktopWallpaper.GetWallpaper` 路径）——
+  后者在幻灯片轮播下返回旧路径，导致永远显示第一张壁纸
+- **加载壁纸永远用 `FileStream`（不用 `UriSource`）**——避免 WPF URI 内部缓存
+- **壁纸+色调层必须设 `IsHitTestVisible="False"`**——避免阻挡内容面板交互
+- **壁纸层圆角裁剪必须用 `OpacityMask`**（`DrawingBrush` + `RectangleGeometry(RadiusX,RadiusY)`），
+  **严禁使用 `UIElement.Clip` 属性**——`Clip` 属性会膨胀元素的命中测试几何体，覆盖面板透明
+  边缘区域，阻断 `EdgeResizer` 的窗口级 `PreviewMouseLeftButtonDown` 边缘检测
+  （`IsHitTestVisible=False` 也无法消除此影响）
+- **壁纸层本身不用包装 Border**——直接作为 Grid 子元素（`Margin=10`），避免多余的视觉树
+  节点引入意外命中测试行为；色调层用 `Border` 自身 `CornerRadius=16` 裁切即可
+
+### 已知性能债务（可优化但暂不紧急）
+
+当前每次 `CropForWindow` 都 `File.ReadAllBytes` + `BitmapImage` 解码整张 TranscodedWallpaper
+（~200KB−1MB，SSD 上 <1ms I/O，1080p 解码约 5−15ms）。窗口缩放/拖动时 `ScheduleRefresh`
+100ms 去抖，峰值约 150ms/秒 CPU。**优化方案**：给解码结果加一层进程内缓存——只在
+`WallpaperChanged` 事件（壁纸文件真的变了）或首次加载时才重新读盘解码；窗口移动/缩放时
+只从已缓存的 `BitmapSource` 重新做 `CroppedBitmap` 裁剪（<1ms）。实施时注意：
+- 缓存需感知文件修改时间（`TranscodedWallpaper` 被就地重写）
+- 多窗口场景共享同一份缓存
 
 ### 系统托盘（已修）
 `App.xaml.cs` 的 `CreateTrayIcon()` 里，`TaskbarIcon`（H.NotifyIcon.Wpf）作为一个纯代码字段创建、**未加入任何可视化树**，因此它的 `Loaded` 事件不会触发、`TrayIcon.Create()`（Shell_NotifyIcon NIM_ADD）不会自动执行——必须显式调用 `_tray.ForceCreate(enablesEfficiencyMode: false)` 注册。

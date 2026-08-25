@@ -22,19 +22,41 @@ public partial class MainWindow : Window
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        // Rainmeter: ShowBlur() after composition check.
-        BlurBackdrop.EnableBlur(this);
+        BlurBackdrop.Attach(this, WallpaperImage, WallpaperBlur);
+        if (DataContext is MainViewModel vm)
+        {
+            BlurBackdrop.SetBlurRadius(this, vm.BlurRadius);
+        }
+        UpdateBackdropOpacityMask();
     }
 
     private void OnClosed(object? sender, EventArgs e)
     {
-        BlurBackdrop.DisableBlur(this);
+        BlurBackdrop.Detach(this);
     }
 
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        // Rainmeter re-creates the blur region on resize (BLURMODE_FULL).
-        BlurBackdrop.UpdateBlurRegion(this);
+        BlurBackdrop.ScheduleRefresh(this);
+        UpdateBackdropOpacityMask();
+    }
+
+    /// <summary>Applies a rounded-rectangle OpacityMask to the wallpaper Image
+    /// so the blur never bleeds past the panel's four rounded corners.
+    /// OpacityMask is purely visual — it does NOT affect hit testing, unlike
+    /// the Clip property which expands the element's hit-test geometry and
+    /// can block EdgeResizer's window-level PreviewMouseLeftButtonDown.</summary>
+    private void UpdateBackdropOpacityMask()
+    {
+        if (WallpaperImage is null) return;
+        var w = WallpaperImage.ActualWidth;
+        var h = WallpaperImage.ActualHeight;
+        if (w <= 0 || h <= 0) return;
+        WallpaperImage.OpacityMask = new System.Windows.Media.DrawingBrush(
+            new System.Windows.Media.GeometryDrawing(
+                System.Windows.Media.Brushes.White, null,
+                new System.Windows.Media.RectangleGeometry(
+                    new System.Windows.Rect(0, 0, w, h), 16, 16)));
     }
 
     private void OnDayCellPressed(object? sender, MouseButtonEventArgs e)
