@@ -47,10 +47,6 @@ public partial class SettingsViewModel : ViewModelBase
     [ObservableProperty]
     public partial double BackgroundOpacity { get; set; } = 0.6;
 
-    /// <summary>WPF BlurEffect radius for the wallpaper backdrop (0-50 px).</summary>
-    [ObservableProperty]
-    public partial double BlurRadius { get; set; } = 15;
-
     /// <summary>Accent color (selected day / 新增事项 / 跳转按钮共用).</summary>
     [ObservableProperty]
     public partial string AccentColor { get; set; } = "#4CAF50";
@@ -106,7 +102,6 @@ public partial class SettingsViewModel : ViewModelBase
         {
             BackgroundColor = _services.Settings.BackgroundColor;
             BackgroundOpacity = _services.Settings.BackgroundOpacity;
-            BlurRadius = _services.Settings.BlurRadius;
             AccentColor = _services.Settings.AccentColor;
             RebuildBackground();
             RebuildAccentPreview();
@@ -126,11 +121,6 @@ public partial class SettingsViewModel : ViewModelBase
     partial void OnBackgroundOpacityChanged(double value)
     {
         RebuildBackground();
-        SaveAppearance();
-    }
-
-    partial void OnBlurRadiusChanged(double value)
-    {
         SaveAppearance();
     }
 
@@ -165,7 +155,6 @@ public partial class SettingsViewModel : ViewModelBase
 
         _services.Settings.BackgroundColor = BackgroundColor;
         _services.Settings.BackgroundOpacity = BackgroundOpacity;
-        _services.Settings.BlurRadius = BlurRadius;
         _services.Settings.AccentColor = AccentColor;
         _services.Settings.Save();
         AppearanceChanged?.Invoke();

@@ -38,9 +38,6 @@ public sealed class UserSettings
     /// <summary>Glass panel background opacity, 0..1 (default 60%).</summary>
     public double BackgroundOpacity { get; set; } = 0.6;
 
-    /// <summary>WPF BlurEffect radius for the wallpaper backdrop (default 15 px).</summary>
-    public double BlurRadius { get; set; } = 15;
-
     /// <summary>
     /// Accent color as hex (e.g. "#4CAF50"): calendar selected day, 新增事项
     /// button and date-jump button share this one color.

@@ -1,164 +1,160 @@
+using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Effects;
-using System.Windows.Threading;
 
 namespace CalendarApp.Platform;
 
 /// <summary>
-/// Manages the blurred-wallpaper backdrop without DWM (RDP-safe).
+/// Rainmeter-style live blur: <c>DwmEnableBlurBehindWindow</c> with
+/// <c>DWM_BB_BLURREGION</c> on a layered window. Mirrors
+/// <c>Skin::ShowBlur() / BlurBehindWindow()</c> from
+/// <c>rainmeter/rainmeter Library/Skin.cpp</c>.
 ///
-/// The panel uses three stacked layers:
-///   1. Wallpaper crop layer — an Image that shows the desktop wallpaper
-///      cropped to the window region (WallpaperBackdrop.CropForWindow), with
-///      a WPF BlurEffect applied.
-///   2. Tint layer — a SolidColorBrush with user-configurable colour and
-///      opacity, rendered on top of the blurred wallpaper.
-///   3. Hit-test floor (1/255 alpha Border, managed by the XAML).
-///
-/// Call Attach once from Loaded, ScheduleRefresh from LocationChanged /
-/// SizeChanged (100 ms debounce), Detach from Closed.
+/// * Checks <c>DwmIsCompositionEnabled</c> and <c>DwmGetColorizationColor</c>
+///   (opaque → no blur), exactly like Rainmeter.
+/// * Creates a full-window <c>HRGN</c> via <c>CreateRectRgn</c> sized to the
+///   physical window bounds (DPI-aware).
+/// * Re-applies on resize; disables on close.
+/// Unlike <c>SetWindowCompositionAttribute(ACCENT_*)</c>, this path does NOT
+/// produce an opaque black rectangle over RDP/software compositors — when
+/// composition is unavailable it simply leaves the window as a tinted
+/// translucent panel (graceful fallback, no black).
 /// </summary>
 public static class BlurBackdrop
 {
-    private static readonly Dictionary<IntPtr, BackdropState> s_states = new();
+    private const uint DWM_BB_ENABLE = 0x00000001;
+    private const uint DWM_BB_BLURREGION = 0x00000002;
 
-    private sealed class BackdropState
+    // One region handle per window, like Skin::m_BlurRegion.
+    private static readonly Dictionary<IntPtr, IntPtr> s_regions = new();
+
+    /// <summary>Enables Rainmeter-style blur on a WPF Window. Call from Loaded / SourceInitialized.</summary>
+    public static bool EnableBlur(Window window)
     {
-        public required Image WallpaperImage { get; init; }
-        public required BlurEffect BlurEffect { get; init; }
-        public DispatcherTimer? DebounceTimer { get; set; }
-        /// <summary>Retry counter for transient file-lock failures.
-        /// Reset to 0 on each successful crop.</summary>
-        public int RetryCount { get; set; }
+        if (!OperatingSystem.IsWindows() || window is null) return false;
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd == IntPtr.Zero) return false;
+        var size = GetPhysicalSize(window);
+        return EnableBlur(hwnd, size.Width, size.Height);
     }
 
-    /// <summary>
-    /// Attaches the backdrop system to a window. The window must have named
-    /// children: x:Name="WallpaperImage" (Image) and x:Name="WallpaperBlur"
-    /// (BlurEffect).
-    /// </summary>
-    public static void Attach(Window window, Image wallpaperImage, BlurEffect blurEffect)
+    /// <summary>Enables blur for an HWND with explicit physical size. DPI-aware.</summary>
+    public static bool EnableBlur(IntPtr hwnd, int physicalW, int physicalH)
     {
-        if (!OperatingSystem.IsWindows() || window is null) return;
+        if (!OperatingSystem.IsWindows() || hwnd == IntPtr.Zero) return false;
+        if (physicalW <= 0 || physicalH <= 0) return false;
 
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
-        if (hwnd == IntPtr.Zero) return;
+        // Rainmeter: if DWM composition is disabled or colorization is opaque, skip blur.
+        if (DwmIsCompositionEnabled(out var enabled) != 0 || !enabled) return false;
+        if (DwmGetColorizationColor(out _, out var opaque) == 0 && opaque) return false;
 
-        if (s_states.ContainsKey(hwnd)) Detach(window);
-
-        var state = new BackdropState
+        // Drop previous region for this window, like Skin::ShowBlur() does for BLURMODE_FULL.
+        if (s_regions.TryGetValue(hwnd, out var old) && old != IntPtr.Zero)
         {
-            WallpaperImage = wallpaperImage,
-            BlurEffect = blurEffect,
+            DeleteObject(old);
+            s_regions.Remove(hwnd);
+        }
+
+        var hRgn = CreateRectRgn(0, 0, physicalW, physicalH);
+        if (hRgn == IntPtr.Zero) return false;
+        s_regions[hwnd] = hRgn;
+
+        var bb = new DWM_BLURBEHIND
+        {
+            dwFlags = DWM_BB_ENABLE | DWM_BB_BLURREGION,
+            fEnable = true,
+            hRgnBlur = hRgn,
+            fTransitionOnMaximized = false,
         };
-        s_states[hwnd] = state;
-
-        WallpaperBackdrop.WallpaperChanged += OnWallpaperChanged;
-        RefreshBlur(window);
+        var hr = DwmEnableBlurBehindWindow(hwnd, ref bb);
+        return hr == 0;
     }
 
-    /// <summary>Removes the backdrop from this window. Call from Closed.</summary>
-    public static void Detach(Window window)
+    /// <summary>Updates the blur region after a resize. Call from SizeChanged.</summary>
+    public static void UpdateBlurRegion(Window window)
     {
         if (!OperatingSystem.IsWindows() || window is null) return;
-
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        var hwnd = new WindowInteropHelper(window).Handle;
         if (hwnd == IntPtr.Zero) return;
-
-        WallpaperBackdrop.WallpaperChanged -= OnWallpaperChanged;
-
-        if (s_states.TryGetValue(hwnd, out var state))
-        {
-            state.DebounceTimer?.Stop();
-            state.DebounceTimer = null;
-            state.WallpaperImage.Source = null;
-            s_states.Remove(hwnd);
-        }
+        var size = GetPhysicalSize(window);
+        EnableBlur(hwnd, size.Width, size.Height);
     }
 
-    /// <summary>
-    /// Captures the wallpaper under the window immediately and applies the blur.
-    /// Transient file-lock failures (TranscodedWallpaper mid-write during
-    /// slideshow transitions) trigger up to 3 automatic retries.
-    /// </summary>
-    public static void RefreshBlur(Window window)
+    /// <summary>Disables blur and frees the region. Call from Closed.</summary>
+    public static void DisableBlur(IntPtr hwnd)
     {
-        if (!OperatingSystem.IsWindows() || window is null) return;
-
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
-        if (hwnd == IntPtr.Zero || !s_states.TryGetValue(hwnd, out var state)) return;
-
-        var crop = WallpaperBackdrop.CropForWindow(window);
-        if (crop is not null)
+        if (hwnd == IntPtr.Zero) return;
+        if (s_regions.TryGetValue(hwnd, out var hRgn) && hRgn != IntPtr.Zero)
         {
-            state.RetryCount = 0;
-            state.WallpaperImage.Source = crop;
+            DeleteObject(hRgn);
+            s_regions.Remove(hwnd);
         }
-        else if (state.RetryCount < 3)
-        {
-            state.RetryCount++;
-            // File may be mid-write — retry after a short quiet period.
-            ScheduleRefresh(window);
-        }
+        var bb = new DWM_BLURBEHIND { dwFlags = DWM_BB_ENABLE, fEnable = false };
+        DwmEnableBlurBehindWindow(hwnd, ref bb);
     }
 
-    /// <summary>
-    /// Schedules a RefreshBlur after 100 ms of quiet. Call from
-    /// LocationChanged / SizeChanged so dragging/resizing the window does not
-    /// capture on every pixel.
-    /// </summary>
-    public static void ScheduleRefresh(Window window)
+    public static void DisableBlur(Window window)
     {
-        if (!OperatingSystem.IsWindows() || window is null) return;
-
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
-        if (hwnd == IntPtr.Zero || !s_states.TryGetValue(hwnd, out var state)) return;
-
-        if (state.DebounceTimer is null)
-        {
-            var timer = new DispatcherTimer(
-                TimeSpan.FromMilliseconds(100),
-                DispatcherPriority.Background,
-                (_, _) =>
-                {
-                    state.DebounceTimer?.Stop();
-                    RefreshBlur(window);
-                },
-                window.Dispatcher);
-            state.DebounceTimer = timer;
-        }
-
-        state.DebounceTimer.Stop();
-        state.DebounceTimer.Start();
+        if (window is null) return;
+        var hwnd = new WindowInteropHelper(window).Handle;
+        DisableBlur(hwnd);
     }
 
-    /// <summary>Sets the BlurEffect radius directly on the WPF effect.</summary>
-    public static void SetBlurRadius(Window window, double radius)
+    private static (int Width, int Height) GetPhysicalSize(Window window)
     {
-        if (!OperatingSystem.IsWindows() || window is null) return;
-
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
-        if (hwnd == IntPtr.Zero || !s_states.TryGetValue(hwnd, out var state)) return;
-
-        state.BlurEffect.Radius = Math.Max(0, radius);
-    }
-
-    private static void OnWallpaperChanged()
-    {
-        // Walk all attached windows and refresh.
-        foreach (var (hwnd, _) in s_states)
+        var source = PresentationSource.FromVisual(window);
+        double dpiX = 1.0, dpiY = 1.0;
+        if (source?.CompositionTarget != null)
         {
-            foreach (Window w in Application.Current.Windows)
-            {
-                var wh = new System.Windows.Interop.WindowInteropHelper(w).Handle;
-                if (wh == hwnd)
-                {
-                    RefreshBlur(w);
-                    break;
-                }
-            }
+            dpiX = source.CompositionTarget.TransformToDevice.M11;
+            dpiY = source.CompositionTarget.TransformToDevice.M22;
         }
+        var w = (int)Math.Round(window.ActualWidth * dpiX);
+        var h = (int)Math.Round(window.ActualHeight * dpiY);
+        // Fallback: use window Width/Height if not yet rendered.
+        if (w <= 0) w = (int)Math.Round(window.Width * dpiX);
+        if (h <= 0) h = (int)Math.Round(window.Height * dpiY);
+        if (w <= 0) w = 340;
+        if (h <= 0) h = 500;
+        return (w, h);
     }
-}
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DWM_BLURBEHIND
+    {
+        public uint dwFlags;
+        public bool fEnable;
+        public IntPtr hRgnBlur;
+        public bool fTransitionOnMaximized;
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmIsCompositionEnabled(out bool pfEnabled);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetColorizationColor(out uint pcrColorization, out bool pfOpaqueBlend);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmEnableBlurBehindWindow(IntPtr hWnd, ref DWM_BLURBEHIND pBlurBehind);
+
+    [DllImport("gdi32.dll")]
+    private static extern IntPtr CreateRectRgn(int x1, int y1, int x2, int y2);
+
+    [DllImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DeleteObject(IntPtr hObject);
+
+    // Legacy acrylic path kept for reference but NOT used by the Rainmeter flow.
+    // If you need to re-enable it, call the ACCT path below instead of DWM blur.
+    private const int WCA_ACCENT_POLICY = 19;
+    private const int ACCENT_ENABLE_ACRYLICBLURBEHIND = 4;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ACCENTPOLICY { public int AccentState; public int AccentFlags; public int GradientColor; public int AnimationId; }
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWCOMPOSITIONATTRIBDATA { public int Attribute; public IntPtr Data; public int SizeOfData; }
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetWindowCompositionAttribute(IntPtr hwnd, ref WINDOWCOMPOSITIONATTRIBDATA data);
+}

@@ -96,35 +96,17 @@
     </Window.Resources>
 
 
-    <!-- 玻璃面板：壁纸截取 + WPF BlurEffect 模糊 + 用户色调叠层。
-         纯客户端内容，RDP 安全。DWM 模糊已移除。
-         WallpaperBackdrop 返回窗口物理像素尺寸的截取，
-         Stretch=Fill 在任何 DPI 下都是一比一屏幕像素映射（不拉伸变形）。
-         WallpaperImage 用 OpacityMask（DrawingBrush + RectangleGeometry(16,16)）
-         精确裁剪四个圆角。不用 Clip —— OpacityMask 不影响命中测试，EdgeResizer 正常。 -->
+    <!-- 玻璃面板主体：Rainmeter 风格 DwmEnableBlurBehindWindow 实时模糊
+         （WS_EX_LAYERED 分层窗口 + DWM_BB_BLURREGION）。面板色调
+         （PanelBackground）盖在模糊之上，本地与 RDP 均不产生黑矩形。 -->
     <Grid>
-        <!-- 整窗 1/255 alpha 底衬：让透明边缘全部可命中 -->
+        <!-- 整窗 1/255 alpha 底衬：让透明边缘（面板四周 10px 外边距）全部可命中，
+             边缘点击必定到达窗口——缩放由 EdgeResizer 在窗口级按光标位置判定，
+             不依赖任何单个元素收到事件。 -->
         <Border Background="#01000000" />
 
-        <!-- 壁纸 + 色调层 → 限制在圆角面板区域内（与内容 Border 同尺寸/同圆角）。
-             WallpaperImage 用 OpacityMask（DrawingBrush + RectangleGeometry 圆角）裁剪模糊溢出；
-             色调 Border 自身 CornerRadius=16 仍保留。不用 Clip 属性——会干扰 EdgeResizer 边缘检测。 -->
-        <Image x:Name="WallpaperImage"
-               Stretch="Fill"
-               IsHitTestVisible="False"
-               Margin="10">
-            <Image.Effect>
-                <BlurEffect x:Name="WallpaperBlur" Radius="15"
-                            RenderingBias="Performance" />
-            </Image.Effect>
-        </Image>
-
-        <!-- 用户颜色层 —— CornerRadius 自身裁切圆角 -->
-        <Border IsHitTestVisible="False"
-                Background="{Binding PanelBackground}"
-                Margin="10" CornerRadius="16" />
-
         <Border Margin="10" CornerRadius="16"
+                Background="{Binding PanelBackground}"
                 BorderBrush="#66FFFFFF"
                 BorderThickness="1">
         <DockPanel>

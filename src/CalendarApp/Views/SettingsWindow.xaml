@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Icon="pack://application:,,,/Assets/app.ico"
         Title="日程文件夹"
-        Width="460" Height="565"
+        Width="460" Height="525"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize"
         ShowActivated="True">
@@ -58,7 +58,6 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <!-- 背景颜色 -->
@@ -89,26 +88,14 @@
                                Margin="8,0,0,0"/>
                 </StackPanel>
 
-                <!-- 模糊半径：WPF BlurEffect.Radius，0=无模糊 50=极强模糊 -->
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="模糊半径"
-                           VerticalAlignment="Center" FontSize="12" Margin="0,12,0,0"/>
-                <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,12,0,0">
-                    <Slider Minimum="0" Maximum="50" Width="160"
-                            Value="{Binding BlurRadius}"
-                            VerticalAlignment="Center"/>
-                    <TextBlock Text="{Binding BlurRadius, StringFormat={}{0:F0} px}"
-                               FontSize="12" VerticalAlignment="Center" MinWidth="36"
-                               Margin="8,0,0,0"/>
-                </StackPanel>
-
                 <!-- 强调色：日历选中日 / 新增事项按钮 / 跳转按钮共用 -->
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="强调色"
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="强调色"
                            VerticalAlignment="Center" FontSize="12" Margin="0,8,0,0"/>
-                <TextBox Grid.Row="3" Grid.Column="1"
+                <TextBox Grid.Row="2" Grid.Column="1"
                          Text="{Binding AccentColor, UpdateSourceTrigger=PropertyChanged}"
                          FontSize="12" VerticalContentAlignment="Center" Padding="6,4"
                          Margin="0,8,0,0"/>
-                <Border x:Name="AccentSwatch" Grid.Row="3" Grid.Column="2" Width="28" Height="28"
+                <Border x:Name="AccentSwatch" Grid.Row="2" Grid.Column="2" Width="28" Height="28"
                         CornerRadius="6" Margin="12,8,0,0"
                         Background="{Binding AccentPreview}"
                         BorderBrush="#33000000" BorderThickness="1"
