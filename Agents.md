@@ -52,9 +52,12 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 - 遗留 SQLite 兼容层（`ScheduleDatabase`/`ScheduleRepository`）已整体移除，**不要**再依赖任何 sqlite 概念。
 
 ### 设置存放
-- `~/.scheduleapp/settings.json`（`UserSettings`）：上次打开文件夹、外观（`BackgroundColor`/`BackgroundOpacity`/`AccentColor`）、窗口几何、开机启动。
-- `~/.scheduleapp/lastWindow.json`（`LastViewSettings`）：记住上次是「日历」还是「事项」子视图。
+- `~/.calendarapp/settings.json`（`UserSettings`）：上次打开文件夹、外观（`BackgroundColor`/`BackgroundOpacity`/`AccentColor`）、开机启动。**不再存窗口几何**——窗口位置/尺寸已移入 lastWindow.json。
+- `~/.calendarapp/lastWindow.json`（`LastViewSettings`）：记住上次是「日历」还是「事项」子视图，以及**按显示器分辨率+DPI 分组的窗口几何**（`Geometry` 字典，key 为 `{workW}x{workH}@{dpi}`）。
 - 均为写入后再 `File.Move` 的原子写。
+- **禁止 `new LastViewSettings{...}.Save()`**：这会用一个只含 `View` 的全新对象覆盖 lastWindow.json，清空 `Geometry` 字典（曾导致窗口位置/大小永远记录不下来）。子视图切换必须改共享实例 `_services.LastView.View` 再 `Save()`（`MainViewModel.SetView` 已有此注释）。
+- **分辨率/DPI 切换自动恢复**：`WindowGeometry.OnMovedOrResized` 在每次 `LocationChanged` 时检测当前 key 是否变化——变了就查找该分辨率的历史几何记录并恢复；无记录则自动 dock 右下角。重置窗口位置只清空当前分辨率下的那条记录。
+- **RDP / 热插拔 / 会话恢复必须主动对齐**：这些场景不触发窗口的 `LocationChanged/SizeChanged`，但会改变显示器几何。`App` 监听 `SystemEvents.DisplaySettingsChanged` + `SessionSwitch`（RemoteConnect/ConsoleConnect/SessionLogon），去抖 700ms 后再补一次 1600ms 跟进检查，调 `WindowGeometry.Reconcile` 重新对齐（恢复该分辨率记录或 dock 右下角）。
 
 ### 桌面玻璃层（本应用核心特色，最易踩坑）
 `Platform/DesktopGlassBehavior.cs` 是 **Rainmeter 三窗口 z-order 系统的忠实移植**（System 窗口 + Helper 窗口 + 主窗口，HwndSource.AddHook 拦截 z-order 变化与最小化/关闭）。要点：
@@ -132,8 +135,11 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 - 图标资产 `Assets/app.ico` 是 **PNG 压缩帧**，`BitmapImage` 能解码（已实测），但注意托盘图标注册依赖上面那句 `ForceCreate`。
 
 ### 窗口几何持久化
-`Platform/WindowGeometry.cs`：位置存**物理像素**（`GetWindowRect`/`SetWindowPos`），尺寸存 **DIP**（`ActualWidth/Height`），跨 DPI 显示器拖动时位置不受缩放影响。位置超出 `[200,4000]` 视为无效，回退到右下角贴边。
-- **分辨率自适应尺寸**：`ComputeAdaptiveSize` 根据当前显示器工作区按比例算尺寸（宽≈工作区 18%、高≈50%，除以 DPI 得 DIP，并在窗口自身 Min 值以上）；`ApplyDefaultPlacement` 同时设尺寸并贴右下角。托盘「重置窗口位置」与首次运行（无几何记录）都走它。
+`Platform/WindowGeometry.cs`：位置存**物理像素**（`GetWindowRect`/`SetWindowPos`），尺寸存 **DIP**（`ActualWidth/Height`），跨 DPI 显示器拖动时位置不受缩放影响。
+- **`GetMonitorInfo` 必须走 `TryGetMonitorInfo` 包装**：Win32 要求调用前先填 `MONITORINFO.cbSize = Marshal.SizeOf<MONITORINFO>()`，否则调用失败、所有几何查询静默短路（曾导致 lastWindow.json 的 Geometry 永远为空、重置/自适应都不生效）。不要直接裸调 `GetMonitorInfo`。
+- **按分辨率分组**：每个 `{workW}x{workH}@{dpi}` key 独立存一条几何记录于 `LastViewSettings.Geometry`。拖动窗口到不同分辨率/DPI 的显示器时自动恢复该配置下的上次位置/尺寸，无记录则 dock 右下角。
+- **分辨率自适应尺寸**：`ComputeAdaptiveSize` 根据当前显示器工作区按比例算尺寸（宽≈工作区 18%、高≈50%，除以 DPI 得 DIP，并在窗口自身 Min 值以上）；`ApplyDefaultPlacement` 同时设尺寸并贴右下角。托盘「重置窗口位置」与首次运行（无几何记录）都走它，且**只清空当前分辨率的那条记录**。
+- **位置钳制**：`ClampToWorkArea` 确保恢复的位置至少 80px 留在屏幕内，不会跑到屏幕外。
 
 ### 视图
 `MainWindow` 有日历/事项两个子视图（顶栏分段按钮切换，用 `LastViewSettings` 恢复）。另有 `SettingsWindow`、`ItemEditorWindow`（含 SimpleMarkdown 预览）、`DateJumpWindow`（点击月标题弹出的日期跳转浮层，涉及 `NotifyTransientWindow` 保持 Show Desktop z-order）。

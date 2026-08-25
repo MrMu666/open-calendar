@@ -6,9 +6,13 @@ using System.Text.Json.Serialization;
 namespace CalendarApp.Data;
 
 /// <summary>
-/// Remembers which main-panel view (calendar or tasks) the user last had open,
-/// stored as a tiny JSON file (<c>~/.scheduleapp/lastWindow.json</c>) next to
-/// settings.json. Read at startup to restore the previous view.
+/// Remembers the last main-panel view (calendar/tasks) and per-resolution
+/// window geometry. Stored as a tiny JSON file next to settings.json
+/// (<c>~/.calendarapp/lastWindow.json</c>).
+///
+/// Window geometry is keyed by monitor resolution + DPI so that dragging
+/// the panel between monitors with different resolutions/DPI restores the
+/// last size and position for each configuration independently.
 /// </summary>
 public sealed class LastViewSettings
 {
@@ -23,16 +27,47 @@ public sealed class LastViewSettings
     /// <summary>"calendar" or "tasks". Unknown values fall back to calendar on read.</summary>
     public string View { get; set; } = "calendar";
 
+    /// <summary>Per-resolution window geometry, keyed by e.g. "1920x1080@96".</summary>
+    public Dictionary<string, SavedGeometry> Geometry { get; set; } = new();
+
     /// <summary>True when the saved view is the tasks list (derived, not serialized).</summary>
     [JsonIgnore]
     public bool IsTasksView => string.Equals(View, "tasks", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Default location: inside the user-profile .scheduleapp directory.</summary>
+    /// <summary>Default location: inside the user-profile .calendarapp directory.</summary>
     public static string DefaultPath =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
             UserSettings.DefaultDirectoryName,
             DefaultFileName);
+
+    /// <summary>
+    /// Builds the resolution key from a monitor's work-area size and DPI.
+    /// </summary>
+    public static string MakeKey(int workWidthPx, int workHeightPx, uint dpi) =>
+        $"{workWidthPx}x{workHeightPx}@{dpi}";
+
+    /// <summary>
+    /// Returns the saved geometry for the given key, or null.
+    /// </summary>
+    public SavedGeometry? GetGeometry(string key) =>
+        Geometry.TryGetValue(key, out var g) ? g : null;
+
+    /// <summary>
+    /// Saves (or updates) the geometry for the given key.
+    /// </summary>
+    public void SetGeometry(string key, int x, int y, double width, double height)
+    {
+        Geometry[key] = new SavedGeometry { X = x, Y = y, Width = width, Height = height };
+    }
+
+    /// <summary>
+    /// Removes the geometry entry for the given key, leaving others intact.
+    /// </summary>
+    public void RemoveGeometry(string key)
+    {
+        Geometry.Remove(key);
+    }
 
     public static LastViewSettings Load(string? path = null)
     {
@@ -68,4 +103,15 @@ public sealed class LastViewSettings
         File.WriteAllText(tempPath, JsonSerializer.Serialize(this, JsonOptions));
         File.Move(tempPath, fullPath, overwrite: true);
     }
+}
+
+/// <summary>
+/// A single window-geometry record (position in physical pixels, size in DIPs).
+/// </summary>
+public sealed class SavedGeometry
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
 }

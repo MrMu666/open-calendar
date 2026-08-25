@@ -9,13 +9,13 @@ namespace CalendarApp.Data;
 /// The only state the app keeps between sessions in the user profile: the path
 /// of the last opened storage folder plus app-level preferences (appearance,
 /// window geometry). Stored as a small JSON file in the current user's profile
-/// directory (e.g. <c>~/.scheduleapp/settings.json</c>). The storage folder
+/// directory (e.g. <c>~/.calendarapp/settings.json</c>). The storage folder
 /// itself only holds schedule items; nothing else is ever written outside
 /// these two.
 /// </summary>
 public sealed class UserSettings
 {
-    public const string DefaultDirectoryName = ".scheduleapp";
+    public const string DefaultDirectoryName = ".calendarapp";
     public const string DefaultFileName = "settings.json";
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -43,18 +43,6 @@ public sealed class UserSettings
     /// button and date-jump button share this one color.
     /// </summary>
     public string AccentColor { get; set; } = "#4CAF50";
-
-    /// <summary>Last main-window position (physical pixels). Null = never saved.</summary>
-    public int? WindowX { get; set; }
-
-    /// <summary>Last main-window position (physical pixels). Null = never saved.</summary>
-    public int? WindowY { get; set; }
-
-    /// <summary>Last main-window size (DIPs). Null = never saved.</summary>
-    public double? WindowWidth { get; set; }
-
-    /// <summary>Last main-window size (DIPs). Null = never saved.</summary>
-    public double? WindowHeight { get; set; }
 
     /// <summary>Whether the app should auto-launch at user sign-in.</summary>
     public bool LaunchAtStartup { get; set; }
