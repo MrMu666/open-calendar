@@ -144,6 +144,9 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 ### 视图
 `MainWindow` 有日历/事项两个子视图（顶栏分段按钮切换，用 `LastViewSettings` 恢复）。另有 `SettingsWindow`、`ItemEditorWindow`（含 SimpleMarkdown 预览）、`DateJumpWindow`（点击月标题弹出的日期跳转浮层，涉及 `NotifyTransientWindow` 保持 Show Desktop z-order）。
 
+- **日历选中状态与刷新边界**：`MainViewModel.Refresh(resetSelection)` 带参数——事项数据变化后，`AddItem`/`UpdateItem`/`DeleteItem` 传 `resetSelection: false`，保持用户当前选中的日期/月份（在过去的某天右键「设为已完成/长期事项/删除」后**不会**跳回今天，方便继续处理该天其他事项）；`resetSelection: true`（默认）才重置回今天，用于打开/切换存储文件夹、应用启动。顶栏「事项」按钮（`ShowTasks`）也会主动回到今天并清除日历选中态。
+- **日历事项提示点**：日期格子下的小圆点由 `CalendarDayCell.EventDotBrush` 决定颜色——该日有未到期事项（`EndsAt` 为空或未过）= 红色 `#FF4D4D`，事项均已到期 = 绿色 `#03D96B`，色值与事项列表中结束日期（红）/开始日期（绿）文字一致；圆点与农历字样间距由 XAML 中 `Margin="0,3,0,0"` 控制。
+
 - **设置页选色 Popup**：`SettingsWindow.xaml` 的调色板 `Popup` 用 `StaysOpen="True"`（不用 `StaysOpen="False"`），因为点击色块预览触发 `MouseLeftButtonDown` 打开 Popup 的一瞬间，WPF 会判定该点击在 Popup 之外从而立即关闭它。关闭逻辑改为手动管理：
   - 点击色块预览：同目标再次点击关闭（切换），新目标切换并打开
   - 点击色块选色后关闭

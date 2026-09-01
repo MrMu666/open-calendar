@@ -267,10 +267,14 @@
                                             <TextBlock Text="{Binding LunarText}" FontSize="9"
                                                        Foreground="#8CFFFFFF"
                                                        HorizontalAlignment="Center" Margin="0,1,0,0"/>
-                                            <Ellipse Width="3" Height="3" Fill="#A8E6CF"
+                                            <!-- 事项提示点：上边缘距农历字样下边缘留出间隙（Margin 顶部 3px）。
+                                                 颜色：有未到期事项 = 红色，事项均已到期 = 绿色
+                                                 （色值与事项列表中开始/结束日期文字一致）。 -->
+                                            <Ellipse Width="4" Height="4"
+                                                     Fill="{Binding EventDotBrush}"
                                                      Visibility="{Binding HasEvents,
                                                          Converter={StaticResource BoolToVis}}"
-                                                     HorizontalAlignment="Center" />
+                                                     HorizontalAlignment="Center" Margin="0,3,0,0" />
                                         </StackPanel>
                                     </Border>
                                 </DataTemplate>

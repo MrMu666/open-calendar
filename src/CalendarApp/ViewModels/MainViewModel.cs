@@ -140,7 +140,7 @@ public partial class MainViewModel : ViewModelBase
     {
         _services.Items.Insert(item);
         ItemsChanged?.Invoke();
-        Refresh();
+        Refresh(resetSelection: false);
     }
 
     /// <summary>
@@ -153,7 +153,7 @@ public partial class MainViewModel : ViewModelBase
     {
         _services.Items.Update(oldItem, newItem);
         ItemsChanged?.Invoke();
-        Refresh();
+        Refresh(resetSelection: false);
     }
 
     /// <summary>Asks the host to open the editor pre-filled with the given item.</summary>
@@ -178,7 +178,7 @@ public partial class MainViewModel : ViewModelBase
     {
         _services.Items.MoveToDeleted(item.Event);
         ItemsChanged?.Invoke();
-        Refresh();
+        Refresh(resetSelection: false);
     }
 
     [RelayCommand]
@@ -187,9 +187,12 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ShowTasks()
     {
+        // 选中事项 = 回到默认的当日：左上角日期回到今天，↩ 按钮消失，
+        // 日历面板选中态取消（_hasExplicitSelection=false + 重建当月网格，回到当日格）。
         _selectedDate = DateTime.Today;
         _hasExplicitSelection = false;
-        UpdateHeaderState();
+        SetDisplayMonth(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1));
+        LoadDayEvents();
         SetView(calendar: false);
     }
 
@@ -290,6 +293,14 @@ public partial class MainViewModel : ViewModelBase
         var events = _services.Items.GetUpcoming(
             new DateTimeOffset(first), new DateTimeOffset(first.AddMonths(1)), limit: 5000);
         var eventDays = events.Select(e => e.StartsAt.ToLocalTime().Date).ToHashSet();
+        var now = DateTimeOffset.Now;
+        // Red if the day has at least one item whose deadline (EndsAt) has not
+        // passed; green if items exist but all deadlines have passed. Long-term
+        // items (EndsAt == null, year-2099 sentinel) count as unexpired.
+        var unexpiredDays = events
+            .Where(e => e.EndsAt is null || e.EndsAt >= now)
+            .Select(e => e.StartsAt.ToLocalTime().Date)
+            .ToHashSet();
         var today = DateTime.Today;
 
         for (var i = 0; i < 42; i++)
@@ -300,6 +311,7 @@ public partial class MainViewModel : ViewModelBase
                 Date = d,
                 IsInMonth = d.Month == first.Month,
                 HasEvents = eventDays.Contains(d),
+                HasUnexpiredEvents = unexpiredDays.Contains(d),
                 IsToday = d == today,
                 IsSelected = _hasExplicitSelection && d == _selectedDate,
                 LunarText = LunarCalendar.GetDayName(d),
@@ -369,7 +381,16 @@ public partial class MainViewModel : ViewModelBase
         RebuildBackground();
     }
 
-    public void Refresh()
+    /// <summary>
+    /// Refreshes item-derived data after a store change.
+    /// </summary>
+    /// <param name="resetSelection">
+    /// True resets the calendar to today (storage folder opened/switched or app
+    /// start). False keeps the user's selected day/month so that right-click
+    /// actions on a past day (设为已完成/长期事项/删除) don't yank the panel back
+    /// to today — the user stays on that day to continue handling its items.
+    /// </param>
+    public void Refresh(bool resetSelection = true)
     {
         // Items whose deadline has passed belong in archive/ per 存储目录设计.md.
         if (_services.Items.IsOpen)
@@ -377,8 +398,11 @@ public partial class MainViewModel : ViewModelBase
             _services.Items.ArchiveExpiredItems();
         }
 
-        _selectedDate = DateTime.Today;
-        _hasExplicitSelection = false;
+        if (resetSelection)
+        {
+            _selectedDate = DateTime.Today;
+            _hasExplicitSelection = false;
+        }
         UpdateHeaderState();
 
         ReloadAppearance();
@@ -394,7 +418,10 @@ public partial class MainViewModel : ViewModelBase
             HasDataFile = false;
         }
 
-        SetDisplayMonth(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1));
+        if (resetSelection)
+        {
+            SetDisplayMonth(new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1));
+        }
         RebuildCalendar();
         LoadDayEvents();
         LoadUpcomingItems();
@@ -569,6 +596,9 @@ public sealed class CalendarDayCell
 
     public bool HasEvents { get; init; }
 
+    /// <summary>Day has at least one item whose deadline has not passed.</summary>
+    public bool HasUnexpiredEvents { get; init; }
+
     public bool IsToday { get; init; }
 
     public bool IsSelected { get; init; }
@@ -580,6 +610,15 @@ public sealed class CalendarDayCell
 
     /// <summary>Out-of-month filler cells are faded.</summary>
     public double CellOpacity => IsInMonth ? 1.0 : 0.35;
+
+    /// <summary>
+    /// Event-dot color: red when the day has ≥1 unexpired item, green when
+    /// items exist but all expired. Values match the item list's end-date
+    /// (red #FF4D4D) / start-date (green #03D96B) text colors.
+    /// </summary>
+    public Brush EventDotBrush => HasUnexpiredEvents
+        ? new SolidColorBrush(Color.FromRgb(0xFF, 0x4D, 0x4D))
+        : new SolidColorBrush(Color.FromRgb(0x03, 0xD9, 0x6B));
 
     public Brush Background => IsSelected
         ? Theme.Accent
