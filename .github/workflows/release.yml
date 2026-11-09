@@ -2,7 +2,7 @@ name: 构建与发布
 
 # 触发方式：
 #   1. 推送 v* 标签（如 v1.0.0）→ 构建并创建 GitHub Release，附带安装包
-#   2. 推送到 master / dev → 只构建并上传 Actions 产物，不创建 Release（用于验证）
+#   2. 推送到 master → 只构建并上传 Actions 产物，不创建 Release（用于验证）
 #   3. 手动 workflow_dispatch → 只构建产物
 on:
   push:
@@ -10,7 +10,6 @@ on:
       - 'v*'
     branches:
       - master
-      - dev
   workflow_dispatch:
     inputs:
       version:
