@@ -56,6 +56,8 @@ public partial class App : Application
         // 监听系统事件并在变化后重新对齐窗口位置与大小。
         SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
         SystemEvents.SessionSwitch += OnSessionSwitch;
+        SystemEvents.TimeChanged += OnSystemTimeChanged;
+        SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
         // Self-heal the Run key if the exe path changed since last launch.
         if (_services.Settings.LaunchAtStartup)
@@ -82,6 +84,8 @@ public partial class App : Application
     {
         SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
         SystemEvents.SessionSwitch -= OnSessionSwitch;
+        SystemEvents.TimeChanged -= OnSystemTimeChanged;
+        SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         try { _tray?.Dispose(); }
         catch { /* best-effort */ }
         try { _services?.Items.Dispose(); }
@@ -99,6 +103,10 @@ public partial class App : Application
         {
             DesktopGlassBehavior.NotifyAppHiding(_mainWindow, false);
             _mainWindow.Show();
+
+            // 托盘/快捷键把面板重新叫出来时顺手复查一次跨天：万一午夜定时器
+            // 和系统事件都没赶上（例如长时间休眠），打开面板也不会停在昨天。
+            ((MainViewModel?)_mainWindow.DataContext)?.CheckDayRollover();
             return;
         }
 
@@ -297,6 +305,33 @@ public partial class App : Application
         {
             ScheduleDisplayReconcile();
         }
+    }
+
+    /// <summary>
+    /// 系统时间/时区被修改（手动改时间、系统校时，以及部分休眠恢复场景）后，
+    /// 本地“今天”可能已经变了，而且之前排好的午夜定时器已不对应新的零点：
+    /// 让主面板立即复查一次跨天并重排定时器。SystemEvents 回调不一定在 UI
+    /// 线程上，必须封送。
+    /// </summary>
+    private void OnSystemTimeChanged(object? sender, EventArgs e)
+    {
+        _mainWindow?.Dispatcher.BeginInvoke(new Action(() =>
+            ((MainViewModel?)_mainWindow?.DataContext)?.CheckDayRollover()));
+    }
+
+    /// <summary>
+    /// 休眠/待机期间 DispatcherTimer 不会触发；恢复时补一次跨天复查，避免
+    /// “合盖过夜 → 第二天打开面板仍停在昨天”的情况。
+    /// </summary>
+    private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
+    {
+        if (e.Mode != PowerModes.Resume)
+        {
+            return;
+        }
+
+        _mainWindow?.Dispatcher.BeginInvoke(new Action(() =>
+            ((MainViewModel?)_mainWindow?.DataContext)?.CheckDayRollover()));
     }
 
     private void ScheduleDisplayReconcile()

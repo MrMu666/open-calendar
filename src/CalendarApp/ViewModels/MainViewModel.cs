@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Windows.Media;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CalendarApp.Data;
@@ -19,7 +20,11 @@ public partial class MainViewModel : ViewModelBase
     private static readonly Brush NormalSegmentBrush = Brushes.Transparent;
 
     private readonly AppServices _services;
+    private readonly DispatcherTimer _midnightTimer;
     private DateTime _selectedDate = DateTime.Today;
+
+    /// <summary>上一次观察到的本地日期；与 <see cref="DateTime.Today"/> 比较即可发现跨天。</summary>
+    private DateTime _lastKnownToday = DateTime.Today;
 
     /// <summary>
     /// False until the user explicitly picks a date. While false, today's cell
@@ -30,6 +35,13 @@ public partial class MainViewModel : ViewModelBase
     public MainViewModel(AppServices services)
     {
         _services = services;
+
+        // 跨零点：在下一个本地零点后 1 秒触发一次，触发后重新排程（见
+        // CheckDayRollover）。用一次性长定时器而不是轮询，精确且几乎零开销；
+        // 系统休眠跨天时恢复后补触发，日期比较能兜住连睡多天的情况。
+        _midnightTimer = new DispatcherTimer();
+        _midnightTimer.Tick += (_, _) => CheckDayRollover();
+
         _services.Items.Changed += () => Refresh();
         _services.Items.ItemsChanged += () =>
             Application.Current?.Dispatcher.BeginInvoke(ReloadItems);
@@ -43,6 +55,8 @@ public partial class MainViewModel : ViewModelBase
         {
             SetView(calendar: false);
         }
+
+        ScheduleMidnightTick();
     }
 
     /// <summary>Raised when the user asks to open the data-file/settings window.</summary>
@@ -276,6 +290,48 @@ public partial class MainViewModel : ViewModelBase
         ShowBackToToday = _selectedDate.Date != DateTime.Today
             || DisplayMonth.Year != DateTime.Today.Year
             || DisplayMonth.Month != DateTime.Today.Month;
+    }
+
+    /// <summary>
+    /// 检测本地日历日是否已变化（午夜定时器或系统校时/改时区触发），并在面板
+    /// 仍停留在“今天”时把选中日与显示月推进到新的一天。
+    ///
+    /// 只有 <see cref="DayRollover.IsFollowingToday"/> 为真才跟随：用户正在浏览
+    /// 过去的某天或别的月份时，选中日不会被零点拽走，此时只刷新日历的“今天”
+    /// 标记、标题栏日期和事项数据。
+    /// </summary>
+    public void CheckDayRollover()
+    {
+        var today = DateTime.Today;
+        if (today != _lastKnownToday)
+        {
+            var previousToday = _lastKnownToday;
+            _lastKnownToday = today;
+
+            if (DayRollover.IsFollowingToday(_selectedDate, DisplayMonth, previousToday))
+            {
+                _selectedDate = today;
+                if (DisplayMonth.Year != today.Year || DisplayMonth.Month != today.Month)
+                {
+                    SetDisplayMonth(new DateTime(today.Year, today.Month, 1));
+                }
+            }
+
+            // 刷新标题日期 / ↩ 按钮、日历 IsToday 与圆点、当日事项、未到期列表。
+            // resetSelection:false 保证不覆盖上面刚算好的选中日。
+            Refresh(resetSelection: false);
+        }
+
+        // 无论本次是否跨天，都按当前时钟重排下一次零点触发（系统时间可能刚被改动）。
+        ScheduleMidnightTick();
+    }
+
+    /// <summary>把午夜定时器重新排到“下一个本地零点 + 1 秒”。</summary>
+    private void ScheduleMidnightTick()
+    {
+        _midnightTimer.Stop();
+        _midnightTimer.Interval = DayRollover.DelayUntilNextMidnight(DateTime.Now);
+        _midnightTimer.Start();
     }
 
 
