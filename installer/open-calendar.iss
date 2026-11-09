@@ -13,6 +13,10 @@
 #ifndef AppVersion
   #define AppVersion "1.0.0"
 #endif
+; Inno 的 VersionInfoVersion 只接受纯数字版本；tag v1.1 这类两位版本由 CI 补成 1.1.0
+#ifndef NumericVersion
+  #define NumericVersion AppVersion
+#endif
 #ifndef SourceDir
   #define SourceDir "..\src\CalendarApp\bin\Release\publish\win-x64"
 #endif
@@ -36,7 +40,7 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppUrl}
 AppSupportURL={#AppUrl}/issues
 AppUpdatesURL={#AppUrl}/releases
-VersionInfoVersion={#AppVersion}
+VersionInfoVersion={#NumericVersion}
 VersionInfoCompany={#AppPublisher}
 VersionInfoDescription={#AppName} 安装程序
 VersionInfoProductName={#AppName}

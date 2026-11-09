@@ -62,6 +62,7 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 ### 桌面玻璃层（本应用核心特色，最易踩坑）
 `Platform/DesktopGlassBehavior.cs` 是 **Rainmeter 三窗口 z-order 系统的忠实移植**（System 窗口 + Helper 窗口 + 主窗口，HwndSource.AddHook 拦截 z-order 变化与最小化/关闭）。要点：
 - WPF 化改动：不用 `SetWindowSubclass`，改 `HwndSource.AddHook`（委托由 HwndSource 保活）。**四边拖拽缩放是窗口级的位置检测**（`Platform/EdgeResizer.cs` + `MainWindow.xaml`）：主面板是 `AllowsTransparency` 分层窗口（+`WS_EX_NOACTIVATE`），`WindowChrome.ResizeBorderThickness`、`WM_NCHITTEST` 边界命中、乃至 `WM_SYSCOMMAND SC_SIZE` 缩放循环在分层窗口上都不可靠（左/上边缘不跟手、单个抓手元素命中也有不对称问题）。做法：整窗铺一层 `#01000000`（1/255 alpha）底衬让透明边缘全部可命中，在窗口 `PreviewMouseLeftButtonDown/Move` 里用 `GetWindowRect`+`GetCursorPos` 按光标位置判定边缘（10 DIP 带，即面板外边距），拖动时用一次 `SetWindowPos`（物理像素、`SWP_NOZORDER|SWP_NOACTIVATE`）同时改位置和尺寸，最小尺寸按 `MinWidth/MinHeight` 钳制。
+  缩放边缘的悬停光标用 `Mouse.OverrideCursor` 设置——它是**应用级全局状态**，指针离开面板 / 面板隐藏 / 托盘菜单弹出时必须清空，否则托盘右键菜单会继承 ↔/↕ 缩放光标（已修：`MouseLeave`、`IsVisibleChanged`、`LostMouseCapture` + 托盘菜单 `Opened` 四处清理）。
 - `RegisterClassEx` 的 WndProc 委托**必须是 static readonly 字段保活**，否则 GC 回收后窗口消息会触发 `Environment.FailFast` 崩溃（代码里已注明）。
 - `WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE` 让面板不抢占焦点、不进任务栏。
 
@@ -146,7 +147,7 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 
 - **日历选中状态与刷新边界**：`MainViewModel.Refresh(resetSelection)` 带参数——事项数据变化后，`AddItem`/`UpdateItem`/`DeleteItem` 传 `resetSelection: false`，保持用户当前选中的日期/月份（在过去的某天右键「设为已完成/长期事项/删除」后**不会**跳回今天，方便继续处理该天其他事项）；`resetSelection: true`（默认）才重置回今天，用于打开/切换存储文件夹、应用启动。顶栏「事项」按钮（`ShowTasks`）也会主动回到今天并清除日历选中态。
 - **日历事项提示点**：日期格子下的小圆点由 `CalendarDayCell.EventDotBrush` 决定颜色——该日有未到期事项（`EndsAt` 为空或未过）= 红色 `#FF4D4D`，事项均已到期 = 绿色 `#03D96B`，色值与事项列表中结束日期（红）/开始日期（绿）文字一致；圆点与农历字样间距由 XAML 中 `Margin="0,3,0,0"` 控制。
-- **月历网格**：只渲染本月日期，月初/月末用补位空格（不显示邻月日期；空格 `IsHitTestVisible=false`，无手型光标也不会被选中）；行数按当月实际占用的周数 4–6 行（`Models/CalendarMonthLayout`），不需要第 6 行时不生成，界面自然不占高度。`CalendarDayCell.IsPast`（日期早于今天）时数字用 `#73FFFFFF`、农历用 `#52FFFFFF` 半透明显示，今天与未来保持 `#D9FFFFFF` / `#8CFFFFFF`；选中的过去日期数字仍为白色以保证可读。
+- **月历网格**：行数按当月实际占用的周数 4–6 行（`Models/CalendarMonthLayout`），不需要第 6 行时不生成、界面不占高度；首行/末行用相邻月份日期填满，**没有空白格**。文字透明度三级：今天与未来 `#D9FFFFFF` / `#8CFFFFFF`，历史日期 `#73FFFFFF` / `#52FFFFFF`，相邻月份 `#40FFFFFF` / `#2EFFFFFF`（最淡）；选中日期数字为白色。相邻月份格子可点击选中（沿用原行为，不自动翻月）。
 - **跨零点自动换日**：`MainViewModel` 内置午夜 `DispatcherTimer`，规则集中在 `Models/DayRollover`（`IsFollowingToday` 判定“是否仍停在今天”，`DelayUntilNextMidnight` 给出到下一个本地零点 +1 秒的延时）。零点后若面板仍在今天（选中日 = 旧今天**且**显示月 = 旧今天所在月），选中日与显示月自动推进到新一天，并 `Refresh(resetSelection:false)` 刷新标题、日历 `IsToday` 标记、圆点、当日事项与未到期列表，↩ 按钮保持隐藏；用户正在浏览其他日期/月份时不会被拽走。`App` 另外监听 `SystemEvents.TimeChanged`（改系统时间/校时）与 `PowerModeChanged(Resume)`（合盖休眠跨天）主动复查，覆盖定时器休眠期间不触发的情况。
 
 - **设置页选色 Popup**：`SettingsWindow.xaml` 的调色板 `Popup` 用 `StaysOpen="True"`（不用 `StaysOpen="False"`），因为点击色块预览触发 `MouseLeftButtonDown` 打开 Popup 的一瞬间，WPF 会判定该点击在 Popup 之外从而立即关闭它。关闭逻辑改为手动管理：
@@ -168,7 +169,7 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 
 ## 约定与注意
 
-- **Git 分支约定**：仓库只有 `master`（默认/主分支）一个分支，**没有 `main`，也没有 `dev`**。说「main」指 `master`；所有提交直接在 `master` 上进行。推送远程、打发布标签（`v*`）都需用户明确指令；标签会触发 `.github/workflows/release.yml` 自动构建 Windows 安装包并创建 Release。
+- **Git 分支约定**：仓库只有 `master`（默认/主分支）一个分支，**没有 `main`，也没有 `dev`**。说「main」指 `master`；所有提交直接在 `master` 上进行。推送远程、打发布标签（`v*`）都需用户明确指令；标签会触发 `.github/workflows/release.yml` 自动构建 Windows 安装包并创建 Release。标签支持 `v1.1`（两位，CI 会补成 `1.1.0` 供 Inno 使用，文件名仍为 `open-calendar-1.1-...`）与 `v1.1.0`（三位）两种写法。
 - **构建输出位置（硬性约定）**：Debug / Release / publish / 安装包全部放在项目 `bin\` 下——`src\CalendarApp\bin\Debug\`、`src\CalendarApp\bin\Release\`、`src\CalendarApp\bin\Release\publish\win-x64\`、`src\CalendarApp\bin\Release\installer\`。**禁止**在仓库根目录新建 `publish\`、`artifacts\`、`out\` 等散落目录。
 - UI 文案、错误消息用中文；标识符用英文。
 - 对齐/缩进、命名风格跟随现有代码（`ScheduleEvent`、`ScheduleEventItem`、`CalendarDayCell` 等）。

@@ -68,11 +68,17 @@ jobs:
             $version = "0.0.0-dev.$env:RUN_NUMBER"
           }
 
-          # Inno Setup 的 VersionInfoVersion 只接受纯数字版本
-          $numeric = ($version -split '-')[0]
-          if ($numeric -notmatch '^\d+\.\d+\.\d+$') {
-            throw "版本号格式不正确：'$version'（应为 x.y.z 或 x.y.z-预发布后缀）"
+          # Inno Setup 的 VersionInfoVersion 只接受纯数字版本。允许 v1.1 这种两位
+          # 写法，统一补齐成 x.y.z（1.1 → 1.1.0）。
+          $m = [regex]::Match($version, '^(\d+)(?:\.(\d+))?(?:\.(\d+))?')
+          if (-not $m.Success) {
+            throw "版本号格式不正确：'$version'（应为 x.y 或 x.y.z，可带 -预发布后缀）"
           }
+
+          $major = [int]$m.Groups[1].Value
+          $minor = if ($m.Groups[2].Success) { [int]$m.Groups[2].Value } else { 0 }
+          $patch = if ($m.Groups[3].Success) { [int]$m.Groups[3].Value } else { 0 }
+          $numeric = "$major.$minor.$patch"
 
           $prerelease = if ($version -match '-') { 'true' } else { 'false' }
 
@@ -110,6 +116,7 @@ jobs:
       - name: 编译 Inno Setup 安装包
         shell: pwsh
         env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
           APP_NUMERIC_VERSION: ${{ steps.version.outputs.numeric }}
         run: |
           $ErrorActionPreference = 'Stop'
@@ -129,7 +136,8 @@ jobs:
           $publishDir = Join-Path $PWD 'src/CalendarApp/bin/Release/publish/win-x64'
           $installerDir = Join-Path $PWD 'src/CalendarApp/bin/Release/installer'
           $defines = @(
-            "/DAppVersion=$env:APP_NUMERIC_VERSION",
+            "/DAppVersion=$env:APP_VERSION",
+            "/DNumericVersion=$env:APP_NUMERIC_VERSION",
             "/DSourceDir=$publishDir",
             "/DOutputDir=$installerDir"
           )
