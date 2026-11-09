@@ -1,24 +1,93 @@
-# Build artifacts
-bin/
-obj/
-out/
+# ============================================================
+# 日程桌面（open-calendar-desktop）忽略规则
+# 原则：源码/文档/构建脚本入库；产物、缓存、本机配置、工具状态不入库
+# ============================================================
+
+# ---------- .NET 构建产物 ----------
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
 publish/
 artifacts/
+out/
+dist/
+*.pdb
+*.mdb
+*.cache
+*.tlog
+*.binlog
+*.log
+msbuild.log
+*.deps.json.bak
 
-# IDE
+# 仅保留本仓库需要的二进制资产（图标等），其余产物已在上面按目录排除
+
+# ---------- 安装包输出（Inno Setup） ----------
+installer/Output/
+installer/Logs/
+*.exe.bak
+
+# ---------- Visual Studio / Rider / VS Code ----------
 .vs/
 .vscode/
 .idea/
+.fleet/
+_ReSharper*/
+*.DotSettings.user
 *.user
 *.suo
+*.userosscache
+*.sln.docstates
+*.svclog
+*.psess
+*.vsp
+*.vspx
+*.ncb
+*.sdf
+*.opensdf
+*.ipch
+*.aps
+*.VC.db
+*.VC.opendb
 
-# OS
-Thumbs.db
-Desktop.ini
-
-# Test results
+# ---------- 测试与覆盖率 ----------
 TestResults/
+[Tt]est[Rr]esult*/
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
 *.trx
+*.testlog
 
-# Opencode local state
+# ---------- NuGet ----------
+packages/
+.nuget/
+*.nupkg
+*.snupkg
+project.lock.json
+
+# ---------- 操作系统 ----------
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# ---------- 本机/工具状态（不参与构建） ----------
 .omo/
+.codegraph/
+.freebuff/
+.dsh/
+.idea.DSH/
+
+# ---------- 本地敏感配置 ----------
+.env
+.env.*
+!.env.example
+*.local.json
+secrets.json
