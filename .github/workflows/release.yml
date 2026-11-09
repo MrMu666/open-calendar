@@ -103,9 +103,9 @@ jobs:
             -p:PublishReadyToRun=true `
             -p:DebugType=None `
             -p:DebugSymbols=false `
-            -o publish/win-x64
+            -o src/CalendarApp/bin/Release/publish/win-x64
           if ($LASTEXITCODE -ne 0) { throw "发布失败（exit $LASTEXITCODE）" }
-          if (-not (Test-Path 'publish/win-x64/CalendarApp.exe')) { throw '发布目录中缺少 CalendarApp.exe' }
+          if (-not (Test-Path 'src/CalendarApp/bin/Release/publish/win-x64/CalendarApp.exe')) { throw '发布目录中缺少 CalendarApp.exe' }
 
       - name: 编译 Inno Setup 安装包
         shell: pwsh
@@ -125,10 +125,13 @@ jobs:
           Write-Host "使用编译器：$iscc"
 
           $compilerDir = Split-Path -Parent $iscc
+          # 产物统一落在项目 bin 下（见 Agents.md「构建输出位置」约定）
+          $publishDir = Join-Path $PWD 'src/CalendarApp/bin/Release/publish/win-x64'
+          $installerDir = Join-Path $PWD 'src/CalendarApp/bin/Release/installer'
           $defines = @(
             "/DAppVersion=$env:APP_NUMERIC_VERSION",
-            "/DSourceDir=$($PWD.Path)\publish\win-x64",
-            "/DOutputDir=$($PWD.Path)\artifacts"
+            "/DSourceDir=$publishDir",
+            "/DOutputDir=$installerDir"
           )
           # 中文语言包由 Inno Setup 6.5+ 提供，存在时才启用
           if (Test-Path (Join-Path $compilerDir 'Languages\ChineseSimplified.isl')) {
@@ -138,27 +141,27 @@ jobs:
           & $iscc @defines 'installer\open-calendar.iss'
           if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败（exit $LASTEXITCODE）" }
 
-          Get-ChildItem artifacts -Filter *.exe | Select-Object Name, Length | Format-Table -AutoSize
+          Get-ChildItem $installerDir -Filter *.exe | Select-Object Name, Length | Format-Table -AutoSize
 
       - name: 生成 SHA256 校验和
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $lines = Get-ChildItem artifacts -Filter *.exe | ForEach-Object {
+          $lines = Get-ChildItem src/CalendarApp/bin/Release/installer -Filter *.exe | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             "$hash  $($_.Name)"
           }
-          if (-not $lines) { throw 'artifacts 目录中没有安装包' }
-          $lines | Out-File -FilePath artifacts/SHA256SUMS.txt -Encoding utf8
-          Get-Content artifacts/SHA256SUMS.txt
+          if (-not $lines) { throw 'installer 目录中没有安装包' }
+          $lines | Out-File -FilePath src/CalendarApp/bin/Release/installer/SHA256SUMS.txt -Encoding utf8
+          Get-Content src/CalendarApp/bin/Release/installer/SHA256SUMS.txt
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: open-calendar-${{ steps.version.outputs.version }}-win-x64
           path: |
-            artifacts/*.exe
-            artifacts/SHA256SUMS.txt
+            src/CalendarApp/bin/Release/installer/*.exe
+            src/CalendarApp/bin/Release/installer/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
 
@@ -168,8 +171,8 @@ jobs:
         with:
           name: 日程桌面 ${{ github.ref_name }}
           files: |
-            artifacts/*.exe
-            artifacts/SHA256SUMS.txt
+            src/CalendarApp/bin/Release/installer/*.exe
+            src/CalendarApp/bin/Release/installer/SHA256SUMS.txt
           generate_release_notes: true
           prerelease: ${{ steps.version.outputs.prerelease }}
           fail_on_unmatched_files: true

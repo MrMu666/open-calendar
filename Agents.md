@@ -161,10 +161,13 @@ tests/CalendarApp.Tests/      # xUnit 测试（文件夹存储、农历、设置
 - 构建：`dotnet build`（根目录，走 slnx）
 - 测试：`dotnet test`（xUnit 测试，全部通过）
 - 主项目：`src/CalendarApp/CalendarApp.csproj`
+- 发布（自包含，产物落在 `bin`）：`dotnet publish src/CalendarApp/CalendarApp.csproj -c Release -r win-x64 --self-contained true -o src/CalendarApp/bin/Release/publish/win-x64`
+- 安装包：`ISCC.exe installer\open-calendar.iss`（输出 `src\CalendarApp\bin\Release\installer\`）
 
 ## 约定与注意
 
 - **Git 分支约定**：仓库只有 `master`（默认/主分支）一个分支，**没有 `main`，也没有 `dev`**。说「main」指 `master`；所有提交直接在 `master` 上进行。推送远程、打发布标签（`v*`）都需用户明确指令；标签会触发 `.github/workflows/release.yml` 自动构建 Windows 安装包并创建 Release。
+- **构建输出位置（硬性约定）**：Debug / Release / publish / 安装包全部放在项目 `bin\` 下——`src\CalendarApp\bin\Debug\`、`src\CalendarApp\bin\Release\`、`src\CalendarApp\bin\Release\publish\win-x64\`、`src\CalendarApp\bin\Release\installer\`。**禁止**在仓库根目录新建 `publish\`、`artifacts\`、`out\` 等散落目录。
 - UI 文案、错误消息用中文；标识符用英文。
 - 对齐/缩进、命名风格跟随现有代码（`ScheduleEvent`、`ScheduleEventItem`、`CalendarDayCell` 等）。
 - 数据层只有 `FolderItemStore`（文件夹存储），移除了 SQLite 相关代码后没有其他存储路径。

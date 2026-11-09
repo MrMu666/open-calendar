@@ -1,10 +1,10 @@
-﻿; ============================================================================
+; ============================================================================
 ;  日程桌面（open-calendar-desktop）Windows 安装包脚本
 ;
-;  本地编译（需要 Inno Setup 6.3+）：
+;  本地编译（需要 Inno Setup 6.3+），产物统一落在 bin 下：
 ;    "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\open-calendar.iss
 ;  或指定参数：
-;    ISCC.exe /DAppVersion=1.2.3 /DSourceDir=..\publish\win-x64 /DOutputDir=..\artifacts open-calendar.iss
+;    ISCC.exe /DAppVersion=1.2.3 /DSourceDir=..\src\CalendarApp\bin\Release\publish\win-x64 /DOutputDir=..\src\CalendarApp\bin\Release\installer open-calendar.iss
 ;
 ;  CI 编译：.github/workflows/release.yml（推送 v* 标签时自动执行）
 ; ============================================================================
@@ -14,10 +14,10 @@
   #define AppVersion "1.0.0"
 #endif
 #ifndef SourceDir
-  #define SourceDir "..\publish\win-x64"
+  #define SourceDir "..\src\CalendarApp\bin\Release\publish\win-x64"
 #endif
 #ifndef OutputDir
-  #define OutputDir "..\artifacts"
+  #define OutputDir "..\src\CalendarApp\bin\Release\installer"
 #endif
 
 ; ---------- 固定信息 ----------
