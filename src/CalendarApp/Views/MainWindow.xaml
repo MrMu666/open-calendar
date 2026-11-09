@@ -246,7 +246,8 @@
                             <TextBlock Grid.Column="6" Text="六" HorizontalAlignment="Center" FontSize="11" Foreground="#99FFFFFF" />
                         </Grid>
 
-                        <!-- 日期格子（6x7，含前后月补位） -->
+                        <!-- 日期格子：只排本月日期，前后用补位空格；行数按当月实际
+                             周数（4–6 行），不需要第 6 行时自然不占高度 -->
                         <ItemsControl ItemsSource="{Binding CalendarDays}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -257,7 +258,7 @@
                                 <DataTemplate DataType="{x:Type vm:CalendarDayCell}">
                                     <Border Margin="1.5" Height="44" CornerRadius="7"
                                             Background="{Binding Background}"
-                                            Opacity="{Binding CellOpacity}"
+                                            IsHitTestVisible="{Binding IsSelectable}"
                                             MouseLeftButtonDown="OnDayCellPressed"
                                             Cursor="Hand">
                                         <StackPanel VerticalAlignment="Center">
@@ -265,7 +266,7 @@
                                                        Foreground="{Binding Foreground}"
                                                        HorizontalAlignment="Center" />
                                             <TextBlock Text="{Binding LunarText}" FontSize="9"
-                                                       Foreground="#8CFFFFFF"
+                                                       Foreground="{Binding LunarForeground}"
                                                        HorizontalAlignment="Center" Margin="0,1,0,0"/>
                                             <!-- 事项提示点：上边缘距农历字样下边缘留出间隙（Margin 顶部 3px）。
                                                  颜色：有未到期事项 = 红色，事项均已到期 = 绿色
