@@ -83,12 +83,47 @@ public static class EdgeResizer
             window.PreviewMouseLeftButtonDown += OnPressed;
             window.PreviewMouseMove += OnMove;
             window.PreviewMouseLeftButtonUp += OnReleased;
+            window.MouseLeave += OnMouseLeave;
+            window.IsVisibleChanged += OnIsVisibleChanged;
+            window.LostMouseCapture += OnLostMouseCapture;
         }
         else
         {
             window.PreviewMouseLeftButtonDown -= OnPressed;
             window.PreviewMouseMove -= OnMove;
             window.PreviewMouseLeftButtonUp -= OnReleased;
+            window.MouseLeave -= OnMouseLeave;
+            window.IsVisibleChanged -= OnIsVisibleChanged;
+            window.LostMouseCapture -= OnLostMouseCapture;
+        }
+    }
+
+    /// <summary>
+    /// Mouse.OverrideCursor 是应用级全局状态：指针离开面板后若不清空，托盘
+    /// 右键菜单等其他窗口会继承 ↔ / ↕ 缩放光标（用户看到的“菜单里变横向箭头”）。
+    /// 指针离开面板、面板隐藏或捕获丢失时都必须还原。
+    /// </summary>
+    private static void OnMouseLeave(object? sender, MouseEventArgs e)
+    {
+        if (_drag is null)
+        {
+            SetOverrideCursor(null);
+        }
+    }
+
+    private static void OnIsVisibleChanged(object? sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is Window { IsVisible: false })
+        {
+            SetOverrideCursor(null);
+        }
+    }
+
+    private static void OnLostMouseCapture(object? sender, MouseEventArgs e)
+    {
+        if (_drag is null)
+        {
+            SetOverrideCursor(null);
         }
     }
 

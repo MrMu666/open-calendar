@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -216,6 +217,10 @@ public partial class App : Application
         };
 
         var menu = new System.Windows.Controls.ContextMenu();
+        // 托盘菜单弹出时主动清掉面板边缘拖拽留下的应用级光标覆盖：
+        // Mouse.OverrideCursor 是全局的，若指针恰好停在面板边缘后移到托盘，
+        // 菜单里会错误地显示 ↔ / ↕ 缩放光标。
+        menu.Opened += (_, _) => Mouse.OverrideCursor = null;
         menu.Items.Add(MakeMenuItem("显示面板", () => CreateAndShowMainWindow()));
         menu.Items.Add(MakeMenuItem("隐藏面板", () =>
         {

@@ -246,8 +246,8 @@
                             <TextBlock Grid.Column="6" Text="六" HorizontalAlignment="Center" FontSize="11" Foreground="#99FFFFFF" />
                         </Grid>
 
-                        <!-- 日期格子：只排本月日期，前后用补位空格；行数按当月实际
-                             周数（4–6 行），不需要第 6 行时自然不占高度 -->
+                        <!-- 日期格子：行数按当月实际周数（4–6 行）；首行/末行用相邻
+                             月份日期填满（无空白格），邻月日期文字更淡 -->
                         <ItemsControl ItemsSource="{Binding CalendarDays}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -258,7 +258,6 @@
                                 <DataTemplate DataType="{x:Type vm:CalendarDayCell}">
                                     <Border Margin="1.5" Height="44" CornerRadius="7"
                                             Background="{Binding Background}"
-                                            IsHitTestVisible="{Binding IsSelectable}"
                                             MouseLeftButtonDown="OnDayCellPressed"
                                             Cursor="Hand">
                                         <StackPanel VerticalAlignment="Center">

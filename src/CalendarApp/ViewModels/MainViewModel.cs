@@ -219,7 +219,7 @@ public partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void SelectDay(CalendarDayCell? cell)
     {
-        if (cell is null || cell.IsPlaceholder)
+        if (cell is null)
         {
             return;
         }
@@ -336,8 +336,8 @@ public partial class MainViewModel : ViewModelBase
 
 
     /// <summary>
-    /// 构建月历格子（周日开头）：只排本月日期，月初/月末用补位空格；行数按当月
-    /// 实际占用的周数（4–6 行），不需要第 6 行时不生成，界面自然不占高度。
+    /// 构建月历格子（周日开头）：行数按当月实际占用的周数（4–6 行）；首行/末行
+    /// 用相邻月份的日期填满，不出现空白格，邻月日期用比历史日期更淡的颜色。
     /// </summary>
     private void RebuildCalendar()
     {
@@ -348,9 +348,8 @@ public partial class MainViewModel : ViewModelBase
         }
 
         var first = DisplayMonth;
-        var daysInMonth = DateTime.DaysInMonth(first.Year, first.Month);
-        var leading = CalendarMonthLayout.LeadingBlanks(first);
         var weeks = CalendarMonthLayout.Weeks(first);
+        var gridStart = first.AddDays(-CalendarMonthLayout.LeadingBlanks(first));
         var events = _services.Items.GetUpcoming(
             new DateTimeOffset(first), new DateTimeOffset(first.AddMonths(1)), limit: 5000);
         var eventDays = events.Select(e => e.StartsAt.ToLocalTime().Date).ToHashSet();
@@ -364,21 +363,13 @@ public partial class MainViewModel : ViewModelBase
             .ToHashSet();
         var today = DateTime.Today;
 
-        // i 是格子序号，day 是“本月的第几天”；落在 1..daysInMonth 之外就是补位空格，
-        // 不显示邻月日期、不可点击。
         for (var i = 0; i < weeks * 7; i++)
         {
-            var day = i - leading + 1;
-            if (day < 1 || day > daysInMonth)
-            {
-                CalendarDays.Add(new CalendarDayCell { Date = default, IsPlaceholder = true });
-                continue;
-            }
-
-            var d = new DateTime(first.Year, first.Month, day);
+            var d = gridStart.AddDays(i);
             CalendarDays.Add(new CalendarDayCell
             {
                 Date = d,
+                IsInMonth = d.Month == first.Month && d.Year == first.Year,
                 HasEvents = eventDays.Contains(d),
                 HasUnexpiredEvents = unexpiredDays.Contains(d),
                 IsToday = d == today,
@@ -660,11 +651,10 @@ public sealed partial class ScheduleEventItem : ObservableObject
 /// <summary>A single day cell of the month calendar grid.</summary>
 public sealed class CalendarDayCell
 {
-    /// <summary>格子日期；补位空格为 <see cref="DateTime.MinValue"/>（不显示、不可点）。</summary>
     public required DateTime Date { get; init; }
 
-    /// <summary>月初之前 / 月末之后的补位空格：留白、无内容、不参与命中测试。</summary>
-    public bool IsPlaceholder { get; init; }
+    /// <summary>是否属于当前显示的月份；false 表示首行/末行补位的相邻月份日期。</summary>
+    public bool IsInMonth { get; init; }
 
     public bool HasEvents { get; init; }
 
@@ -678,21 +668,18 @@ public sealed class CalendarDayCell
 
     public bool IsSelected { get; init; }
 
-    /// <summary>补位格不参与命中测试，避免手型光标与误选中邻月日期。</summary>
-    public bool IsSelectable => !IsPlaceholder;
-
-    public string DayText => IsPlaceholder
-        ? string.Empty
-        : Date.Day.ToString(CultureInfo.InvariantCulture);
+    public string DayText => Date.Day.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>Lunar day name shown under the Gregorian numeral, e.g. "初五".</summary>
     public string LunarText { get; init; } = string.Empty;
 
-    // 白字三种透明度：正常 #D9、今天之前 #73；农历正常 #8C、今天之前 #52。
+    // 白字透明度：数字 正常 #D9 / 历史 #73 / 邻月 #40；农历 #8C / #52 / #2E。
     private static readonly Brush NormalTextBrush = MakeTextBrush(0xD9);
     private static readonly Brush PastTextBrush = MakeTextBrush(0x73);
+    private static readonly Brush AdjacentTextBrush = MakeTextBrush(0x40);
     private static readonly Brush NormalLunarTextBrush = MakeTextBrush(0x8C);
     private static readonly Brush PastLunarTextBrush = MakeTextBrush(0x52);
+    private static readonly Brush AdjacentLunarTextBrush = MakeTextBrush(0x2E);
     private static readonly Brush TodayBackgroundBrush =
         Freeze(new SolidColorBrush(Color.FromArgb(0x33, 255, 255, 255)));
 
@@ -722,12 +709,18 @@ public sealed class CalendarDayCell
 
     public Brush Foreground => IsSelected
         ? Brushes.White
-        : IsPast
-            ? PastTextBrush
-            : NormalTextBrush;
+        : !IsInMonth
+            ? AdjacentTextBrush
+            : IsPast
+                ? PastTextBrush
+                : NormalTextBrush;
 
-    /// <summary>农历字样：选中时保持正常透明度以保证可读，其余过去日期变淡。</summary>
-    public Brush LunarForeground => IsPast && !IsSelected
-        ? PastLunarTextBrush
-        : NormalLunarTextBrush;
+    /// <summary>农历字样：选中时保持正常透明度；邻月最淡，历史日期次之。</summary>
+    public Brush LunarForeground => IsSelected
+        ? NormalLunarTextBrush
+        : !IsInMonth
+            ? AdjacentLunarTextBrush
+            : IsPast
+                ? PastLunarTextBrush
+                : NormalLunarTextBrush;
 }

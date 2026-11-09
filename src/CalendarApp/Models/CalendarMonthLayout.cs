@@ -1,12 +1,15 @@
 namespace CalendarApp.Models;
 
 /// <summary>
-/// 月历网格布局：只渲染本月日期，月初/月末用空格补位（不显示邻月日期），
-/// 行数按当月实际占用的周数决定（4–6 行），这样不需要第 6 行时不会白占高度。
+/// 月历网格布局：行数按当月实际占用的周数决定（4–6 行），首行/末行由相邻月份
+/// 日期填满，不出现空白格。
 /// </summary>
 public static class CalendarMonthLayout
 {
-    /// <summary>当月 1 号之前要留几个空格（周日 = 0，周一 = 1 … 周六 = 6）。</summary>
+    /// <summary>
+    /// 首行中位于 1 号之前的格子数（周日 = 0，周一 = 1 … 周六 = 6）。
+    /// 这些格子显示上个月的日期（更淡）。
+    /// </summary>
     public static int LeadingBlanks(DateTime month) =>
         (int)new DateTime(month.Year, month.Month, 1).DayOfWeek;
 
