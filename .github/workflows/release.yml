@@ -1,0 +1,176 @@
+name: 构建与发布
+
+# 触发方式：
+#   1. 推送 v* 标签（如 v1.0.0）→ 构建并创建 GitHub Release，附带安装包
+#   2. 推送到 master / dev → 只构建并上传 Actions 产物，不创建 Release（用于验证）
+#   3. 手动 workflow_dispatch → 只构建产物
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - master
+      - dev
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号（x.y.z，手动触发时生效）'
+        required: false
+        default: '0.0.0'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+
+jobs:
+  windows-installer:
+    name: Windows 安装包
+    runs-on: windows-latest
+
+    steps:
+      - name: 签出仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 安装 .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: 计算版本号
+        id: version
+        shell: pwsh
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if ($env:REF_TYPE -eq 'tag') {
+            # v1.2.3 → 1.2.3；v1.2.3-beta.1 → 1.2.3-beta.1
+            $version = $env:REF_NAME -replace '^v', ''
+          }
+          elseif ($env:INPUT_VERSION) {
+            $version = $env:INPUT_VERSION.Trim()
+          }
+          else {
+            # 分支构建：0.0.0-dev.<运行号>，避免与正式版本混淆
+            $version = "0.0.0-dev.$env:RUN_NUMBER"
+          }
+
+          # Inno Setup 的 VersionInfoVersion 只接受纯数字版本
+          $numeric = ($version -split '-')[0]
+          if ($numeric -notmatch '^\d+\.\d+\.\d+$') {
+            throw "版本号格式不正确：'$version'（应为 x.y.z 或 x.y.z-预发布后缀）"
+          }
+
+          $prerelease = if ($version -match '-') { 'true' } else { 'false' }
+
+          "version=$version"       | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "numeric=$numeric"       | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "版本号：$version（安装包版本 $numeric）"
+
+      - name: 构建并运行测试
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet test tests/CalendarApp.Tests/CalendarApp.Tests.csproj `
+            -c Release --nologo -v minimal
+          if ($LASTEXITCODE -ne 0) { throw "测试失败（exit $LASTEXITCODE）" }
+
+      - name: 发布 win-x64 自包含程序
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet publish src/CalendarApp/CalendarApp.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:Version=$env:APP_VERSION `
+            -p:PublishReadyToRun=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o publish/win-x64
+          if ($LASTEXITCODE -ne 0) { throw "发布失败（exit $LASTEXITCODE）" }
+          if (-not (Test-Path 'publish/win-x64/CalendarApp.exe')) { throw '发布目录中缺少 CalendarApp.exe' }
+
+      - name: 编译 Inno Setup 安装包
+        shell: pwsh
+        env:
+          APP_NUMERIC_VERSION: ${{ steps.version.outputs.numeric }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # GitHub 托管的 windows-latest 预装 Inno Setup（本工作流要求 6.3+，兼容 6.x / 7.x）
+          $iscc = @(
+            ${env:ProgramFiles(x86)}
+            $env:ProgramFiles
+          ) | Where-Object { $_ } | ForEach-Object {
+            Get-ChildItem (Join-Path $_ 'Inno Setup*\ISCC.exe') -ErrorAction SilentlyContinue
+          } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $iscc) { throw '未找到 ISCC.exe，请确认运行器已安装 Inno Setup' }
+          Write-Host "使用编译器：$iscc"
+
+          $compilerDir = Split-Path -Parent $iscc
+          $defines = @(
+            "/DAppVersion=$env:APP_NUMERIC_VERSION",
+            "/DSourceDir=$($PWD.Path)\publish\win-x64",
+            "/DOutputDir=$($PWD.Path)\artifacts"
+          )
+          # 中文语言包由 Inno Setup 6.5+ 提供，存在时才启用
+          if (Test-Path (Join-Path $compilerDir 'Languages\ChineseSimplified.isl')) {
+            $defines += '/DHasChinese'
+          }
+
+          & $iscc @defines 'installer\open-calendar.iss'
+          if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败（exit $LASTEXITCODE）" }
+
+          Get-ChildItem artifacts -Filter *.exe | Select-Object Name, Length | Format-Table -AutoSize
+
+      - name: 生成 SHA256 校验和
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $lines = Get-ChildItem artifacts -Filter *.exe | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          if (-not $lines) { throw 'artifacts 目录中没有安装包' }
+          $lines | Out-File -FilePath artifacts/SHA256SUMS.txt -Encoding utf8
+          Get-Content artifacts/SHA256SUMS.txt
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: open-calendar-${{ steps.version.outputs.version }}-win-x64
+          path: |
+            artifacts/*.exe
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: 创建 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: 日程桌面 ${{ github.ref_name }}
+          files: |
+            artifacts/*.exe
+            artifacts/SHA256SUMS.txt
+          generate_release_notes: true
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          fail_on_unmatched_files: true
